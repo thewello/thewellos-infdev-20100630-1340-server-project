@@ -1,0 +1,9 @@
+Third-party components
+======================
+
+ASM 9.8 (org.objectweb.asm, bytecode manipulation) is bundled in the server and
+patcher jars. It is distributed under the BSD 3-Clause license.
+The full license text is in ASM-LICENSE.txt.
+
+Minecraft (c) Mojang AB. This package does not contain any Minecraft code.
+The patcher works on a copy of the original jar that you provide.

@@ -1,0 +1,104 @@
+# TheWelloDev Plugin API
+
+A Bukkit-style API. Plugins are jars with a `plugin.yml` at the root and a main class that extends `JavaPlugin`.
+
+## Setup
+
+Add `TheWelloDev-API.jar` as a compile-time dependency (scope `provided`). Do not put it in the server; the server already contains it.
+
+```sh
+javac -cp TheWelloDev-API.jar -d out $(find src -name '*.java')
+cp src/plugin.yml out/
+jar cf MyPlugin.jar -C out .
+```
+
+Copy `MyPlugin.jar` into the server's `plugins/` folder and restart.
+
+## plugin.yml
+
+```yaml
+name: HelloPlugin
+version: 1.0
+main: com.example.hello.HelloPlugin
+author: Your name
+description: Example plugin
+depend: []        # required plugins
+softdepend: []    # optional plugins loaded first
+commands:
+  hello:
+    description: Greets the player
+    usage: /<command> [name]
+    aliases: [greet]
+    permission: hello.use   # ".use" and ".default" are open to everyone; others need operator status
+```
+
+## Example
+
+```java
+public class HelloPlugin extends JavaPlugin implements Listener {
+
+    @Override
+    public void onEnable() {
+        getConfig().addDefault("welcome-message", "&aWelcome, %player%!");
+        saveConfig();                                   // plugins/HelloPlugin/config.yml
+        getServer().getPluginManager().registerEvents(this, this);
+        getServer().getScheduler().runTaskTimer(this, new Runnable() {
+            public void run() { getServer().broadcastMessage("&6Announcement!"); }
+        }, 20L * 60, 20L * 60 * 5);                     // after 1 minute, then every 5 minutes
+    }
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+        if (cmd.getName().equals("hello")) {
+            sender.sendMessage(ChatColor.YELLOW + "Hello!");
+            return true;
+        }
+        return false;                                   // false shows the usage message
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent e) {
+        e.getPlayer().sendMessage(getConfig().getString("welcome-message").replace("%player%", e.getPlayer().getName()));
+    }
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBreak(BlockBreakEvent e) {
+        if (e.getBlock().getType() == Material.BEDROCK) e.setCancelled(true);
+    }
+}
+```
+
+A complete example is in `plugins/example/`.
+
+## Packages
+
+| Package | Contents |
+|---|---|
+| `net.thewellodev.api` | `TheWello` (static access), `Server`, `World`, `Location`, `Material`, `ItemStack` |
+| `...api.entity` | `Player`: messages, teleport, kick, location, health, inventory, game mode |
+| `...api.block` | `Block`: type, data, neighbours |
+| `...api.command` | `Command`, `CommandSender`, `ConsoleCommandSender`, `PluginCommand`, `CommandExecutor` |
+| `...api.event` | `Listener`, `@EventHandler`, `EventPriority`, `Cancellable` |
+| `...api.event.player` | Join, quit, kick, login, chat, command, move, drop, pickup, attack, damage by player, death, respawn, health, inventory |
+| `...api.event.block` | Block break and place (including door changes) |
+| `...api.event.world` | Item spawn |
+| `...api.event.server` | Server command, plugin enable and disable |
+| `...api.plugin` | `Plugin`, `PluginManager`, `PluginDescriptionFile`, `java.JavaPlugin` |
+| `...api.scheduler` | `Scheduler`: run, run later, repeat, async |
+| `...api.config` | `Configuration`: simple YAML (`getString`, `getInt`, `getBoolean`, `getStringList`, `set`, `save`) |
+| `...api.util` | `ChatColor`: `&` colour codes |
+
+## Rules
+
+- Touch the world and players only from the main server thread: events, commands and scheduler tasks run there. `runTaskAsync` tasks must not touch the world.
+- Colours use `&0`-`&f`.
+- Block Y ranges from 0 to 127.
+- Cancelling an event stops the server's default action (for example a cancelled block break leaves the block in place).
+
+## Anti-cheat events
+
+`PlayerHealthEvent` and `PlayerAttackEvent` are fired for checks the server itself does not enforce. Without an anti-cheat plugin, nothing is checked. `TheWelloNoCheat` is a reference implementation.
+
+## Versioning
+
+The protocol version is in `Protocol.VERSION`. Plugins compiled against this API work with any server of the same API version; new methods are added without removing old ones.

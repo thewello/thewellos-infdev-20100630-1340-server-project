@@ -1,0 +1,30 @@
+# Client
+
+## Setup
+
+1. Patch your original `inf-20100630-1340.jar`: put it in the `client/` folder of the release and run `patch-client.bat`. It creates `inf-20100630-1340-mp.jar`.
+2. Install the patched jar with one of the launchers:
+   - **BetaCraft**: copy `inf-20100630-1340-mp.jar` and `inf-20100630-1340-mp.info` into `%APPDATA%\.betacraft\versions`. Select `inf-20100630-1340-mp` in BetaCraft.
+   - **Minecraft Launcher**: create `%APPDATA%\.minecraft\versions\inf-20100630-1340-mp\`, put the patched jar and `inf-20100630-1340-mp.json` in it, then create a profile that uses this version.
+3. Start the game with a logged-in original account.
+
+## Joining a server
+
+Main menu, then **Multiplayer**, enter the address (`host` or `host:port`), then **Connect**.
+The player name comes from your launcher account; it is not typed in. If the server uses `online-mode=true`, the account is verified with Mojang.
+
+## Controls
+
+| Key | Action |
+|---|---|
+| T | Chat |
+| / | Command |
+| Q | Drop item |
+| Esc | Menu (does not pause the game in multiplayer) |
+| Double Space (creative only) | Toggle flight; Space up, Shift down |
+
+## Notes
+
+- The inventory is kept on your computer; the server only checks it (invalid items, stack sizes, sudden gains).
+- Chests and furnaces are locked while one player uses them; others see "in use by another player".
+- A patched client only works with a TheWelloDev server of the same version. Protocol mismatches are reported on connect.

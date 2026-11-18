@@ -1,0 +1,5 @@
+name: NoIllegals
+version: 1.0
+main: net.thewellodev.noillegals.NoIllegals
+author: TheWelloDev
+description: Blocks items and blocks that cannot be obtained in survival. Operators are exempt.

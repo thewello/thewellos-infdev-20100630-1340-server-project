@@ -1,0 +1,23 @@
+# Build output
+build/
+dist/
+
+# The original game jar and patched game jars must never be committed
+original/
+*.jar
+!lib/asm-9.8.jar
+!lib/asm-tree-9.8.jar
+
+# IDE and OS files
+.idea/
+.vscode/
+*.iml
+.classpath
+.project
+.settings/
+Thumbs.db
+.DS_Store
+
+# Local server data
+run/
+*.class

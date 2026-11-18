@@ -1,0 +1,10 @@
+release-date:1277905206000
+compile-date:1277905206000
+url:
+launch-method:indev
+launch-method-link:
+proxy-args:-Dhttp.proxyHost=betacraft.uk -Dhttp.proxyPort=11702
+other-name:TheWelloDev Multiplayer
+macos-mousefix:true
+custom:true
+file-ver:1
