@@ -123,7 +123,6 @@ public class TWServer implements Server {
     // Synchronized because the GUI thread reads these too
     private final Set<String> ops = Collections.synchronizedSet(new TreeSet<String>(String.CASE_INSENSITIVE_ORDER));
     private final Set<String> banned = Collections.synchronizedSet(new TreeSet<String>(String.CASE_INSENSITIVE_ORDER));
-    private final Set<String> bannedIps = new TreeSet<String>();
     private final Set<String> whitelist = new TreeSet<String>(String.CASE_INSENSITIVE_ORDER);
     private final Map<String, Set<String>> extraPermissions = new HashMap<String, Set<String>>();
 
@@ -194,7 +193,6 @@ public class TWServer implements Server {
 
         loadList("ops.txt", ops);
         loadList("banned-players.txt", banned);
-        loadList("banned-ips.txt", bannedIps);
         loadList("white-list.txt", whitelist);
         loadPermissions();
 
@@ -428,10 +426,6 @@ public class TWServer implements Server {
             try {
                 Socket s = serverSocket.accept();
                 String addr = s.getInetAddress().getHostAddress();
-                if (bannedIps.contains(addr)) {
-                    s.close();
-                    continue;
-                }
                 PlayerConnection c = new PlayerConnection(s);
                 if (!admitConnection(addr, c)) {
                     s.close();

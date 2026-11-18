@@ -97,4 +97,4 @@ and OpenInv. See [CREDITS.md](CREDITS.md) for the full list and licenses.
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Bundled third-party code: [ASM](lib/ASM-LICENSE.txt) (BSD 3-Clause).
+GNU General Public License v3.0. See [LICENSE](LICENSE). Bundled third-party code: [ASM](lib/ASM-LICENSE.txt) (BSD 3-Clause).

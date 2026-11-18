@@ -36,3 +36,12 @@ Notes
   - online-mode=true requires original (paid) Minecraft accounts.
   - The server and the client must be the same TheWelloDev version.
   - Third-party licenses: THIRD-PARTY-LICENSES.txt.
+
+License and source code
+  This program is licensed under the GNU General Public License v3.0 (see LICENSE).
+  The source code of this version is in the repository at tag v1.0.0:
+  https://github.com/thewello/thewellos-infdev-20100630-1340-server-project
+
+BetaCraft proxy
+  The launch profile sets BetaCraft's HTTP proxy (betacraft.uk:11702). It enables skin fixes when you start
+  the game through the BetaCraft launcher. Skins may not load without it.

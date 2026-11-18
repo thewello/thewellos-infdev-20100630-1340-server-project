@@ -37,3 +37,8 @@ depends on the projects below. Thank you to everyone who made them.
 
 - **Claude** (Anthropic): this project was written with AI-assisted "vibe coding" with Claude. Its code was
   reviewed and tested by its maintainer, but it has not been formally audited.
+
+## License note
+
+The project is licensed under the GNU GPL v3.0 because some plugin code was derived from GPL-licensed projects
+(see the entries above). See [LICENSE](LICENSE).

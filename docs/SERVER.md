@@ -57,7 +57,7 @@ Put plugin jars in the `plugins/` folder and restart (or use `/reload`). See [PL
 | File | Purpose |
 |---|---|
 | `world/` | World data and player positions |
-| `ops.txt`, `white-list.txt`, `banned-players.txt`, `banned-ips.txt` | Access lists |
+| `ops.txt`, `white-list.txt`, `banned-players.txt` | Access lists |
 | `permissions.txt` | Extra permissions |
 | `logs/latest.log` | Log of the current run |
 | `plugins/` | Plugin jars and their configuration folders |
