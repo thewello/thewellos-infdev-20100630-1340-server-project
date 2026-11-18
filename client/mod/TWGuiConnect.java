@@ -98,7 +98,7 @@ public class TWGuiConnect extends dc {
             return;
         }
         String host = addr;
-        int port = -1; // yazilmadiysa SRV kaydina, yoksa 25565
+        int port = -1; // if not written, use the SRV record, otherwise 25565
         int colon = addr.lastIndexOf(':');
         if (colon > 0 && addr.indexOf(']') < colon && addr.indexOf(':') == colon) {
             host = addr.substring(0, colon);

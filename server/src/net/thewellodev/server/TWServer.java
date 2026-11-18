@@ -318,7 +318,7 @@ public class TWServer implements Server {
 
     /**
      * The jar that holds the game code. "auto": inf-20100630-1340*.jar in the server folder (original or MP
-     * TheWelloDev MP version), yoksa BetaCraft versions klasoru.
+     * TheWelloDev MP version), otherwise the BetaCraft versions folder.
      */
     private File findGameJar(String name) {
         List<File> dirs = new ArrayList<File>();
