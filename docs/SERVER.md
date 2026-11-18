@@ -12,7 +12,7 @@ java -Xmx1G -jar TheWelloDev-Server.jar nogui    # console only
 The server needs the patched game jar `inf-20100630-1340-mp.jar` (or the original `inf-20100630-1340.jar`) in its folder.
 It loads the game from there.
 
-Java 8 is recommended. Use `-Xmx2G` for more than about 20 players.
+Java 8 is required. Use `-Xmx2G` for more than about 20 players.
 
 ## server.properties
 

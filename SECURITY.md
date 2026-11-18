@@ -20,8 +20,9 @@ Please do not open a public issue for a security problem. Use GitHub's private r
 - **Plugins run with full server privileges.** A plugin can do anything the server can do. Install only plugins you
   trust, and read their source first.
 - **Operators.** Operators can run every command, including `stop`, `op` and `ban`. Keep the operator list short.
-- **Input handling.** Player names are limited to letters, digits and underscores (2-16 characters). Packet sizes and
-  string lengths are bounded, and chat is sanitised before it is written to the log.
+- **Input handling.** Player names are limited to letters, digits and underscores (2-16 characters). Packet sizes are bounded.
+  Strings are read with the protocol's 64 KB limit and then checked against per-field maximums. Chat is sanitised
+  before it is written to the log.
 - **Port mapping.** Automatic port mapping (UPnP) only trusts a router that answered the discovery request from the
   same address, and only sends requests to that router.
 

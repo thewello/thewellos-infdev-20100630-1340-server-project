@@ -46,6 +46,19 @@ and see [SECURITY.md](SECURITY.md).
 4. Change `server/server.properties` to suit your server.
 5. Install the patched client as described in the bundle's `README.txt` or [docs/CLIENT.md](docs/CLIENT.md).
 
+## Platform and tested setup
+
+- The start scripts (`start-server.bat`, `patch-client.bat`) are for Windows.
+  On other systems run `java -jar TheWelloDev-Server.jar` in the server folder. This has not been tested.
+- Developed and tested on Windows with Java 8 (Temurin). Java 8 is required.
+- Known limitations are listed in [SECURITY.md](SECURITY.md).
+
+## Important: tied to one game build
+
+The client mod and the server bridge refer to the obfuscated class, field and method names of the original
+`inf-20100630-1340.jar` (for example `aw` for the game class, `fe` for the world, `dd` for the player). The project only works with that exact jar. Other Infdev builds
+need a new name mapping and are not supported. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Documentation
 
 - [Build from source](docs/BUILD.md)

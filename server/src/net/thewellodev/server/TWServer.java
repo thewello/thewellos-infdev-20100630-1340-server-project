@@ -172,6 +172,11 @@ public class TWServer implements Server {
         maxPlayers = config.getInt("max-players", 20);
         viewDistance = Math.max(2, Math.min(15, config.getInt("view-distance", 6)));
         levelName = config.getString("level-name", "world");
+        if (!levelName.matches("[A-Za-z0-9_ -]{1,64}")) {
+            // The name is used as a folder name: no dots or path separators allowed
+            logger.warning("Invalid level-name '" + levelName + "' (letters, digits, space, _ and - only, max 64). Using 'world'.");
+            levelName = "world";
+        }
         String seedStr = config.getString("level-seed", "");
         whitelistEnabled = config.getBoolean("white-list", false);
         difficulty = Math.max(0, Math.min(3, config.getInt("difficulty", 2)));

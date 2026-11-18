@@ -21,7 +21,7 @@ public final class TWAuth {
     /**
      * Extracts the access token from the session data. BetaCraft gives it as is; the official
      * Minecraft Launcher gives old versions the form "token:ACCESS_TOKEN:UUID".
-     * @return token ya da yoksa null
+     * @return the token, or null if there is none
      */
     public static String extractToken(String session) {
         if (session == null) {
@@ -36,6 +36,22 @@ public final class TWAuth {
             return null;
         }
         return t;
+    }
+
+    /** Escapes a value for use inside a JSON string. */
+    private static String jsonEscape(String s) {
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '"' || c == '\\') {
+                sb.append('\\').append(c);
+            } else if (c < 32) {
+                sb.append(String.format("\\u%04x", (int) c));
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     /** @return the verified profile name */
@@ -65,8 +81,8 @@ public final class TWAuth {
         c.setRequestMethod("POST");
         c.setDoOutput(true);
         c.setRequestProperty("Content-Type", "application/json");
-        String json = "{\"accessToken\":\"" + token + "\",\"selectedProfile\":\"" + id + "\",\"serverId\":\""
-                + serverId + "\"}";
+        String json = "{\"accessToken\":\"" + jsonEscape(token) + "\",\"selectedProfile\":\"" + jsonEscape(id)
+                + "\",\"serverId\":\"" + jsonEscape(serverId) + "\"}";
         OutputStream o = c.getOutputStream();
         o.write(json.getBytes("UTF-8"));
         o.close();

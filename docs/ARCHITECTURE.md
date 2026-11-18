@@ -1,5 +1,7 @@
 # Architecture
 
+> The client mod and the server bridge depend on the obfuscated names of the original `inf-20100630-1340.jar`. Other builds are not supported.
+
 ## Server
 
 - The server loads the original Infdev classes with a custom class loader and inserts small hook calls with ASM (`GameClassLoader`, `HookTransformer`). Every block change is reported to the server.

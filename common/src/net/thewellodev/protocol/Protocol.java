@@ -264,7 +264,7 @@ public final class Protocol {
         return m.find() ? m.group(1) : null;
     }
 
-    /** Chunk boyutlari (infdev: 16x128x16). */
+    /** Chunk size (infdev: 16x128x16). */
     public static final int CHUNK_BLOCKS = 16 * 16 * 128;
     public static final int CHUNK_NIBBLES = CHUNK_BLOCKS / 2;
     /** Raw chunk data: blocks + metadata + sky light + block light + height map */
@@ -311,7 +311,7 @@ public final class Protocol {
         return out;
     }
 
-    /** Guvenli string okuma (uzunluk sinirli). */
+    /** Reads a string with a length limit. */
     public static String readString(DataInputStream in, int maxLen) throws IOException {
         String s = in.readUTF();
         if (s.length() > maxLen) {
