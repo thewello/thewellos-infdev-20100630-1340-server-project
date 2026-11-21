@@ -1,0 +1,11 @@
+name: TheWelloNoLagg
+version: 1.0
+main: net.thewellodev.nolagg.TheWelloNoLagg
+author: TheWello
+description: Reduces server lag - ground item limit and merging, mob and TNT limits, low TPS protection.
+commands:
+  nolagg:
+    description: Lag prevention tools
+    usage: /<command> status | clear [items|mobs|tnt|all]
+    aliases: [lag, tnl]
+    permission: thewellonolagg.admin

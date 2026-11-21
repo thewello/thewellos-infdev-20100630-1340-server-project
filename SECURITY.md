@@ -24,6 +24,10 @@ Please do not open a public issue for a security problem. Use GitHub's private r
   Strings are read with the protocol's 64 KB limit and then checked against per-field maximums. Chat is sanitised
   before it is written to the log.
 - **Skins.** Player skins are downloaded over plain HTTP from `minecraft.net`, as the original game does (through the BetaCraft proxy). The player name is visible to anyone on the network path.
+- **Builds that keep state on the client.** In builds `inf-20100227-1433`, `inf-20100313` and `inf-20100316` the game keeps the
+  inventory (and in `inf-20100316` the items on the ground) on the client. The server limits the packet rate, the stack
+  sizes and the item ids it accepts and passes the rest on, but it cannot check them against a server-side game state.
+  Use such a server with players you trust, or add checks with a plugin.
 - **Port mapping.** Automatic port mapping (UPnP) only trusts a router that answered the discovery request from the
   same address, and only sends requests to that router.
 

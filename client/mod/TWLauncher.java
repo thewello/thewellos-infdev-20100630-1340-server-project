@@ -15,7 +15,7 @@ import java.util.Map;
 /**
  * Simple launcher to start the patched client without BetaCraft.
  *
- * java -Djava.library.path=natives -cp "inf-20100630-1340-TheWelloDev.jar;lwjgl.jar;lwjgl_util.jar;jinput.jar"
+ * java -Djava.library.path=natives -cp "inf-20100630-1340-mp.jar;lwjgl.jar;lwjgl_util.jar;jinput.jar"
  *      TWLauncher [userName]
  */
 public class TWLauncher implements AppletStub {
@@ -46,7 +46,7 @@ public class TWLauncher implements AppletStub {
                 System.setProperty("thewellodev.autoconnect", args[i + 1]);
             }
         }
-        final Frame frame = new Frame("Minecraft inf-20100630-1340 (TheWelloDev) - " + name);
+        final Frame frame = new Frame("Minecraft inf-20100630-1340 (TheWello's Infdev) - " + name);
         frame.setLayout(new BorderLayout());
         final MinecraftApplet applet = new MinecraftApplet();
         applet.setStub(new TWLauncher(applet, name));

@@ -1,0 +1,105 @@
+package net.thewellodev.server.api313;
+
+import net.thewellodev.api.World;
+import net.thewellodev.api.entity.Player;
+import net.thewellodev.api313.Block313;
+import net.thewellodev.api313.Location313;
+import net.thewellodev.api313.Player313;
+import net.thewellodev.api313.World313;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/** The world as the inf-20100313 API shows it. */
+final class World313Impl implements World313 {
+
+    private final Api313 api;
+    final World handle;
+
+    World313Impl(Api313 api, World handle) {
+        this.api = api;
+        this.handle = handle;
+    }
+
+    public String getName() {
+        return handle.getName();
+    }
+
+    public long getSeed() {
+        return handle.getSeed();
+    }
+
+    public Block313 getBlockAt(int x, int y, int z) {
+        return api.block(handle.getBlockAt(x, y, z));
+    }
+
+    public Block313 getBlockAt(Location313 loc) {
+        return getBlockAt(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
+    }
+
+    public int getBlockTypeIdAt(int x, int y, int z) {
+        return handle.getBlockTypeIdAt(x, y, z);
+    }
+
+    public boolean setBlockTypeId(int x, int y, int z, int typeId) {
+        return handle.setBlockTypeId(x, y, z, typeId);
+    }
+
+    public int getBlockDataAt(int x, int y, int z) {
+        return handle.getBlockDataAt(x, y, z);
+    }
+
+    public boolean setBlockTypeIdAndData(int x, int y, int z, int typeId, int data) {
+        return handle.setBlockTypeIdAndData(x, y, z, typeId, data);
+    }
+
+    public long getTime() {
+        return handle.getTime();
+    }
+
+    public void setTime(long time) {
+        handle.setTime(time);
+    }
+
+    public int getHighestBlockYAt(int x, int z) {
+        return handle.getHighestBlockYAt(x, z);
+    }
+
+    public Location313 getSpawnLocation() {
+        return api.location(handle.getSpawnLocation());
+    }
+
+    public void setSpawnLocation(int x, int y, int z) {
+        handle.setSpawnLocation(x, y, z);
+    }
+
+    public List<? extends Player313> getPlayers() {
+        List<Player313> list = new ArrayList<Player313>();
+        for (Player p : handle.getPlayers()) {
+            list.add(api.player(p));
+        }
+        return list;
+    }
+
+    public boolean isChunkLoaded(int chunkX, int chunkZ) {
+        return handle.isChunkLoaded(chunkX, chunkZ);
+    }
+
+    public boolean isValidBlock(int typeId) {
+        return typeId >= 0 && typeId <= 51;
+    }
+
+    public void save() {
+        handle.save();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof World313Impl && ((World313Impl) o).handle == handle;
+    }
+
+    @Override
+    public int hashCode() {
+        return System.identityHashCode(handle);
+    }
+}

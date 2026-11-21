@@ -27,11 +27,15 @@ public class TWConnection {
         public boolean b;
         public String s;
         public byte[] data;
+        /** INVENTORY_SYNC: n times (id, count, damage). */
+        public int[] inv;
     }
 
     private final String host;
     private final int port;
     private final String username;
+    /** Protocol number of the game build this client belongs to (sent in the handshake). */
+    private final int protocol;
     private Socket socket;
     private DataOutputStream out;
     private final ConcurrentLinkedQueue<Pkt> queue = new ConcurrentLinkedQueue<Pkt>();
@@ -41,13 +45,18 @@ public class TWConnection {
     public volatile boolean loggedIn;
 
     public TWConnection(String host, int port, String username) {
+        this(host, port, username, Protocol.VERSION);
+    }
+
+    public TWConnection(String host, int port, String username, int protocol) {
         this.host = host;
         this.port = port;
         this.username = username;
+        this.protocol = protocol;
     }
 
     public void start() {
-        Thread t = new Thread("TheWelloDev reader") {
+        Thread t = new Thread("Infdev MP reader") {
             public void run() {
                 readLoop();
             }
@@ -87,11 +96,11 @@ public class TWConnection {
             status = "Logging in...";
             synchronized (out) {
                 // Tunnel services read the first packet as a real Minecraft login: first send a compatible
-                // Minecraft Java handshake (the TheWelloDev server skips it), then our own handshake.
+                // Minecraft Java handshake (the server skips it), then our own handshake.
                 out.write(Protocol.vanillaHandshake(host, connectPort, username));
                 out.writeByte(Protocol.HANDSHAKE);
                 out.writeInt(Protocol.MAGIC);
-                out.writeInt(Protocol.VERSION);
+                out.writeInt(protocol);
                 Protocol.writeString(out, username);
                 out.flush();
             }
@@ -302,6 +311,31 @@ public class TWConnection {
             case Protocol.DIFFICULTY:
                 p.i1 = in.readUnsignedByte();
                 break;
+            case Protocol.DROP_SPAWN:
+                p.i1 = in.readInt();
+                p.i2 = in.readShort();
+                p.i3 = in.readShort();
+                p.i4 = in.readShort();
+                p.x = in.readDouble();
+                p.y = in.readDouble();
+                p.z = in.readDouble();
+                p.mx = in.readDouble();
+                p.my = in.readDouble();
+                p.mz = in.readDouble();
+                break;
+            case Protocol.DROP_REMOVE:
+                p.i1 = in.readInt();
+                break;
+            case Protocol.INVENTORY_SYNC: {
+                int n = in.readUnsignedByte();
+                p.inv = new int[n * 3];
+                for (int i = 0; i < n; i++) {
+                    p.inv[i * 3] = in.readShort();
+                    p.inv[i * 3 + 1] = in.readInt();
+                    p.inv[i * 3 + 2] = in.readShort();
+                }
+                break;
+            }
             case Protocol.SET_SLOT:
                 p.i1 = in.readShort();
                 p.i2 = in.readShort();
@@ -514,6 +548,49 @@ public class TWConnection {
                 for (int i = 0; i < n; i++) {
                     o.writeShort(triples[i * 3]);
                     o.writeByte(triples[i * 3 + 1]);
+                    o.writeShort(triples[i * 3 + 2]);
+                }
+            }
+        });
+    }
+
+    /** Build 316: an item appeared in this player's game (own number, id, count, damage, position, motion). */
+    public void sendDropSpawn(final int seq, final int id, final int count, final int damage, final double[] v) {
+        send(new Writer() {
+            public void write(DataOutputStream o) throws IOException {
+                o.writeByte(Protocol.DROP_SPAWN);
+                o.writeInt(seq);
+                o.writeShort(id);
+                o.writeShort(count);
+                o.writeShort(damage);
+                for (int i = 0; i < 6; i++) {
+                    o.writeDouble(v[i]);
+                }
+            }
+        });
+    }
+
+    /** Build 316: an item entity is gone (own: the number is this client's own number). */
+    public void sendDropRemove(final int number, final boolean own) {
+        send(new Writer() {
+            public void write(DataOutputStream o) throws IOException {
+                o.writeByte(Protocol.DROP_REMOVE);
+                o.writeInt(number);
+                o.writeByte(own ? 1 : 0);
+            }
+        });
+    }
+
+    /** The inventory with 32-bit counts (builds 227 and 313): n times (id, count, damage). */
+    public void sendInventoryReport(final int[] triples) {
+        send(new Writer() {
+            public void write(DataOutputStream o) throws IOException {
+                o.writeByte(Protocol.INVENTORY_REPORT);
+                int n = triples.length / 3;
+                o.writeByte(n);
+                for (int i = 0; i < n; i++) {
+                    o.writeShort(triples[i * 3]);
+                    o.writeInt(triples[i * 3 + 1]);
                     o.writeShort(triples[i * 3 + 2]);
                 }
             }

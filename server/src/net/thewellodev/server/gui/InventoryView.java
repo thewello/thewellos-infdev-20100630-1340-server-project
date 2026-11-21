@@ -154,7 +154,7 @@ final class InventoryView {
         }
         c.gridy = y++;
         c.insets = new Insets(12, 0, 4, 0);
-        col.add(section("Zirh"), c);
+        col.add(section("Armour"), c);
         JPanel armor = new JPanel(new GridLayout(1, 9, 4, 4));
         armor.setOpaque(false);
         for (int i = 0; i < 4; i++) {
@@ -168,7 +168,7 @@ final class InventoryView {
         c.gridy = y++;
         c.insets = new Insets(0, 0, 4, 0);
         col.add(armor, c);
-        // artan bosluk en alta
+        // the spare space goes to the bottom
         c.gridy = y;
         c.weighty = 1;
         c.fill = GridBagConstraints.BOTH;
@@ -258,7 +258,7 @@ final class InventoryView {
         return b;
     }
 
-    // ---------------------------------------------------------------- veri
+    // ---------------------------------------------------------------- data
 
     private void refresh() {
         TWPlayer p = find(server, name);
@@ -275,9 +275,9 @@ final class InventoryView {
         }
         boolean op = server.isOp(p.getName());
         header.setText(p.getName() + (op ? "  [OP]" : ""));
-        String mode = p.getGameMode() == 1 ? "Yaratici" : "Survival";
-        chips.setText("Can " + p.getHealth() + "/20   |   Mod: " + mode + "   |   Ping: "
-                + (p.getPing() >= 0 ? p.getPing() + " ms" : "-") + "   |   Elde: " + itemName(p.getItemInHand()));
+        String mode = p.getGameMode() == 1 ? "Creative" : "Survival";
+        chips.setText("Health " + p.getHealth() + "/20   |   Mode: " + mode + "   |   Ping: "
+                + (p.getPing() >= 0 ? p.getPing() + " ms" : "-") + "   |   Holding: " + itemName(p.getItemInHand()));
 
         ItemStack[] now = p.getInventoryContents();
         if (!signature(now).equals(signature(shown))) {
@@ -322,7 +322,7 @@ final class InventoryView {
             details.setText("Slot " + index + " (" + slotName(index) + "): empty");
         } else {
             details.setText("Slot " + index + " (" + slotName(index) + "): " + itemName(it.getTypeId()) + " x" + it.getAmount()
-                    + (it.getData() != 0 ? "  veri " + it.getData() : ""));
+                    + (it.getData() != 0 ? "  data " + it.getData() : ""));
         }
     }
 
@@ -372,9 +372,9 @@ final class InventoryView {
             return "hotbar";
         }
         if (i < MAIN_END) {
-            return "canta";
+            return "inventory";
         }
-        return "zirh";
+        return "armour";
     }
 
     /** Colour by item type: block, tool or weapon, food, armour, other. */
@@ -396,7 +396,7 @@ final class InventoryView {
         }
     }
 
-    // ---------------------------------------------------------------- hucre
+    // ---------------------------------------------------------------- cell
 
     /** One inventory slot. */
     private final class Cell extends JComponent {

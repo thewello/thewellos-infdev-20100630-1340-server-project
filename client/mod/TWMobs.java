@@ -70,7 +70,7 @@ public class TWMobs {
         return nm == null ? null : nm.e;
     }
 
-    // ------------------------------------------------------------------ paketler
+    // ------------------------------------------------------------------ packets
 
     static void onSpawn(TWConnection.Pkt p) {
         if (p.i2 < 0 || p.i2 >= Protocol.MOB_CLASSES.length) {
@@ -322,7 +322,7 @@ public class TWMobs {
     private static void interpolate(NetMob nm) {
         eq e = nm.e;
         if (nm.type == 10) {
-            return; // resimler sabit
+            return; // paintings are fixed
         }
         if (nm.steps <= 0) {
             return;
@@ -379,7 +379,7 @@ public class TWMobs {
                 interpolate(nm);
             }
             applyState(nm);
-            // kol/bacak sallanma animasyonu
+            // arm and leg swing animation
             e.aG = e.aH;
             double dx = e.j - e.g;
             double dz = e.l - e.i;

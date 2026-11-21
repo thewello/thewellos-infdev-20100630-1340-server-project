@@ -11,11 +11,11 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * TheWelloDev server entry point.
+ * TheWello's Infdev Server entry point.
  *
  * <pre>
- * java -Xmx1G -jar TheWelloDev-Server.jar          (pencereli)
- * java -Xmx1G -jar TheWelloDev-Server.jar nogui    (console only)
+ * java -Xmx1G -jar TheWellosInfdevServer.jar          (with the control window)
+ * java -Xmx1G -jar TheWellosInfdevServer.jar nogui    (console only)
  * </pre>
  */
 public final class Main {

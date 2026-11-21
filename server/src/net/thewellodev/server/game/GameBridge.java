@@ -59,6 +59,14 @@ public interface GameBridge {
     /** Safe standing height in column x,z (no lava, water or fire); -1 if the column is not safe. */
     int safeY(int x, int z);
 
+    /**
+     * Where this build's own single player starts (x, y, z), or null when the build has no such rule. Used when the
+     * server's spawn point is the world origin.
+     */
+    default double[] exactSpawn() {
+        return null;
+    }
+
     /** The y just above the highest solid block. */
     int getHighestY(int x, int z);
 
@@ -66,12 +74,32 @@ public interface GameBridge {
 
     int getLoadedEntityCount();
 
+    /**
+     * The folder of an older build's world whose chunks this world takes over when they are first needed (see
+     * WorldConverter). Called before {@link #load}; null when there is none.
+     */
+    default void setLegacyWorld(File folder) {
+    }
+
+    /**
+     * Takes over up to {@code max} chunks of the old world that are not in this world yet (for /convertworld).
+     * @return the number taken over by this call, 0 when nothing is left, -1 when there is no old world
+     */
+    default int convertLegacyBatch(int max) {
+        return -1;
+    }
+
+    /** Number of chunks in memory, or -1 when the build cannot tell. */
+    default int getLoadedChunkCount() {
+        return -1;
+    }
+
     /** Whether a block or item with this id exists in the game. */
     boolean isValidItem(int id);
 
     /** Damage dealt by mobs to players, and items created on the server (to be shared). */
     interface EntityListener {
-        /** @param attackerId saldiranin ag id'si (-1 bilinmiyor) */
+        /** @param attackerId network id of the attacker (-1 = unknown) */
         void onPlayerDamaged(String player, int attackerId, int damage);
 
         void onSound(String name, double x, double y, double z, float volume, float pitch);
@@ -105,7 +133,7 @@ public interface GameBridge {
 
     boolean placeMinecart(int x, int y, int z);
 
-    /** @param netId -1 = indi */
+    /** @param netId -1 = got off */
     boolean setRider(String player, int netId);
 
     void setRiderInput(String player, float mx, float mz);
@@ -138,7 +166,7 @@ public interface GameBridge {
 
     /**
      * Validates tile entity data sent by a client and applies it.
-     * @return uygulanan (normallestirilmis) veri; reddedildiyse null
+     * @return the data that was applied (normalised), or null if it was rejected
      */
     /** Whether the block is a chest or furnace (lockable)? */
     boolean isLockableBlock(int x, int y, int z);

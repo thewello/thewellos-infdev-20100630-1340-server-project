@@ -16,8 +16,8 @@ import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 
 /**
- * TheWelloDev client mod'unun merkezi. Yamalanmis infdev siniflari buradaki
- * statik metodlari cagirir (bkz. ClientPatcher).
+ * The centre of the client mod. The patched Infdev classes call the static
+ * methods in here (see ClientPatcher).
  */
 public class TWClient {
 
@@ -351,7 +351,7 @@ public class TWClient {
         if (bad(p.j) || bad(p.k) || bad(p.l) || bad(p.m) || bad(p.n) || bad(p.o)) {
             if (!nanReported) {
                 nanReported = true;
-                System.out.println("TheWelloDev: invalid player position/speed (" + p.j + "," + p.k + "," + p.l + " speed " + p.m + ","
+                System.out.println("Infdev MP: invalid player position/speed (" + p.j + "," + p.k + "," + p.l + " speed " + p.m + ","
                         + p.n + "," + p.o + ") - returning to the last valid position");
             }
             if (!Double.isNaN(goodX)) {
@@ -405,7 +405,7 @@ public class TWClient {
         long now = System.currentTimeMillis();
         if (now - lastFaultAt > 5000) {
             lastFaultAt = now;
-            System.out.println("TheWelloDev error (" + where + "): " + t);
+            System.out.println("Infdev MP error (" + where + "): " + t);
             t.printStackTrace(System.out);
         }
     }
@@ -465,7 +465,7 @@ public class TWClient {
             // The player left the menu or moved to another world
             if (conn != null) {
                 conn.sendDisconnect("Left the game");
-                conn.close("Oyundan cikildi");
+                conn.close("Left the game");
                 conn = null;
             }
             if (m.e == mpWorld && mpWorld != null) {
@@ -615,7 +615,7 @@ public class TWClient {
             remoteDigs.clear();
             if (!digErrorLogged) {
                 digErrorLogged = true;
-                System.err.println("TheWelloDev: could not draw the block-breaking crack");
+                System.err.println("Infdev MP: could not draw the block-breaking crack");
                 t.printStackTrace();
             }
         } finally {
@@ -672,7 +672,7 @@ public class TWClient {
             c.sendAuthResponse(false, "Invalid verification request");
             return;
         }
-        Thread t = new Thread("TheWelloDev auth") {
+        Thread t = new Thread("Infdev MP auth") {
             public void run() {
                 try {
                     String name = TWAuth.join(token, serverId);
@@ -1006,10 +1006,10 @@ public class TWClient {
             case Protocol.GAME_MODE:
                 if (p.i1 == 1) {
                     mc.b = new bt(mc);
-                    addChat("&eOyun modu: &fCreative");
+                    addChat("&eGame mode: &fCreative");
                 } else {
                     mc.b = new bb(mc);
-                    addChat("&eOyun modu: &fSurvival");
+                    addChat("&eGame mode: &fSurvival");
                 }
                 if (mc.e != null) {
                     mc.b.a(mc.e);
@@ -1086,7 +1086,7 @@ public class TWClient {
         mc.a((dc) null);
         teleportLocal(p.x, p.y, p.z, p.yaw, p.pitch);
         holdPosition = false;
-        addChat("&eTheWelloDev: &fConnected to " + serverAddress + ".");
+        addChat("&eInfdev MP: &fConnected to " + serverAddress + ".");
         if (p.s != null && p.s.length() > 0) {
             addChat(p.s);
         }
@@ -1235,7 +1235,7 @@ public class TWClient {
     }
 
     // ------------------------------------------------------------------
-    // Yardimcilar
+    // Helpers
     // ------------------------------------------------------------------
 
     public static int floor(double d) {
@@ -1274,8 +1274,8 @@ public class TWClient {
         nbtLong(o, "Time", time);
         nbtLong(o, "SizeOnDisk", 0L);
         nbtLong(o, "LastPlayed", System.currentTimeMillis());
-        o.writeByte(0); // Data sonu
-        o.writeByte(0); // kok sonu
+        o.writeByte(0); // end of the data
+        o.writeByte(0); // end of the root
         o.flush();
         GZIPOutputStream gz = new GZIPOutputStream(new FileOutputStream(f));
         gz.write(bo.toByteArray());

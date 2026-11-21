@@ -3,7 +3,7 @@ package net.thewellodev.server.game;
 /** Current state of a synchronized entity (mob or arrow) on the server. The bridge updates it every tick. */
 public final class NetEntity {
     public int id;
-    /** Protocol.MOB_CLASSES indeksi */
+    /** Index into Protocol.MOB_CLASSES */
     public int type;
     public double x, y, z;
     public float yaw, pitch;

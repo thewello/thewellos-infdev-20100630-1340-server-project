@@ -59,8 +59,15 @@ public class SimplePluginManager implements PluginManager {
     private final Map<Class<?>, List<RegisteredHandler>> handlers = new HashMap<Class<?>, List<RegisteredHandler>>();
     private final Map<Class<?>, List<RegisteredHandler>> bakedCache = new HashMap<Class<?>, List<RegisteredHandler>>();
 
+    /** Announces events to the plugins of a build with its own API (inf-20100227-1433, inf-20100316), or null. */
+    private EventTranslator translator;
+
     public SimplePluginManager(TWServer server) {
         this.server = server;
+    }
+
+    public void setTranslator(EventTranslator translator) {
+        this.translator = translator;
     }
 
     // ------------------------------------------------------------ loading
@@ -80,6 +87,12 @@ public class SimplePluginManager implements PluginManager {
             }
             try {
                 PluginDescriptionFile d = readDescription(f);
+                if (!d.getApi().equals(server.getGameVersion())) {
+                    server.getLogger().severe(f.getName() + " was not loaded: it is made for " + d.getApi()
+                            + " but this server runs " + server.getGameVersion()
+                            + ". Use the plugins of the folder optional-plugins/" + server.getGameVersion() + ".");
+                    continue;
+                }
                 if (byName.containsKey(d.getName().toLowerCase(java.util.Locale.ENGLISH))) {
                     server.getLogger().warning("Two plugins with the same name: " + d.getName() + " (" + f.getName() + " skipped)");
                     continue;
@@ -164,7 +177,7 @@ public class SimplePluginManager implements PluginManager {
             throw new InvalidPluginException("main class not found: " + d.getMain());
         }
         if (!JavaPlugin.class.isAssignableFrom(main)) {
-            throw new InvalidPluginException(d.getMain() + " JavaPlugin'i genisletmiyor");
+            throw new InvalidPluginException(d.getMain() + " does not extend JavaPlugin");
         }
         JavaPlugin p = (JavaPlugin) main.newInstance();
         File data = new File(file.getParentFile(), d.getName());
@@ -220,7 +233,7 @@ public class SimplePluginManager implements PluginManager {
         if (plugin.isEnabled()) {
             return;
         }
-        server.getLogger().info(plugin.getDescription().getFullName() + " etkinlestiriliyor");
+        server.getLogger().info(plugin.getDescription().getFullName() + " is being enabled");
         for (PluginDescriptionFile.CommandInfo ci : plugin.getDescription().getCommands().values()) {
             PluginCommand cmd = new PluginCommand(ci.name, plugin);
             cmd.setDescription(ci.description);
@@ -248,7 +261,7 @@ public class SimplePluginManager implements PluginManager {
         if (!plugin.isEnabled()) {
             return;
         }
-        server.getLogger().info(plugin.getDescription().getFullName() + " devre disi birakiliyor");
+        server.getLogger().info(plugin.getDescription().getFullName() + " is being disabled");
         try {
             ((JavaPlugin) plugin).setEnabled(false);
         } catch (Throwable t) {
@@ -334,7 +347,17 @@ public class SimplePluginManager implements PluginManager {
         return l;
     }
 
+    /** Calls an event: the server's own plugins first, then (for a build with its own API) the translated event. */
     public <T extends Event> T callEvent(T event) {
+        dispatch(event);
+        if (translator != null) {
+            translator.translate(event);
+        }
+        return event;
+    }
+
+    /** Hands an event to the handlers registered for its class (no translation). */
+    public <T extends Event> T dispatch(T event) {
         List<RegisteredHandler> list = handlersFor(event.getClass());
         for (RegisteredHandler h : list) {
             if (!h.plugin.isEnabled()) {

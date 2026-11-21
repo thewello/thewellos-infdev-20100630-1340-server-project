@@ -70,8 +70,12 @@ public class PlayerConnection {
     public volatile String authVerifiedName;
     public volatile String authError;
 
-    public PlayerConnection(Socket socket) throws IOException {
+    /** Protocol number of the game build this server runs; clients with another number are refused. */
+    private final int expectedProtocol;
+
+    public PlayerConnection(Socket socket, int expectedProtocol) throws IOException {
         this.socket = socket;
+        this.expectedProtocol = expectedProtocol;
         socket.setTcpNoDelay(true);
         socket.setSoTimeout(60000);
         socket.setTrafficClass(0x10);
@@ -141,14 +145,14 @@ public class PlayerConnection {
         return outgoing.size();
     }
 
-    // ------------------------------------------------------------------ okuma
+    // ------------------------------------------------------------------ reading
 
     private void readLoop() {
         try {
             // Tunnel services may send a Minecraft Java handshake first: skip it
             int first = Protocol.skipVanillaHandshake(in, in.readUnsignedByte());
             if (first != Protocol.HANDSHAKE) {
-                throw new IOException("Invalid first packet (not a TheWelloDev client?)");
+                throw new IOException("Invalid first packet (not a client of this project?)");
             }
             int magic = in.readInt();
             int version = in.readInt();
@@ -156,8 +160,8 @@ public class PlayerConnection {
             if (magic != Protocol.MAGIC) {
                 throw new IOException("Invalid protocol");
             }
-            if (version != Protocol.VERSION) {
-                sendDisconnectNow("Protocol version mismatch (server " + Protocol.VERSION + ", client " + version + ")");
+            if (version != expectedProtocol) {
+                sendDisconnectNow("Protocol version mismatch (server " + expectedProtocol + ", client " + version + ")");
                 return;
             }
             username = name;
@@ -241,6 +245,35 @@ public class PlayerConnection {
                 break;
             case Protocol.FIRE_ARROW:
                 break;
+            case Protocol.DROP_SPAWN:
+                p.i1 = in.readInt();
+                p.i2 = in.readShort();
+                p.i3 = in.readShort();
+                p.i4 = in.readShort();
+                p.x = in.readDouble();
+                p.y = in.readDouble();
+                p.z = in.readDouble();
+                p.mx = in.readDouble();
+                p.my = in.readDouble();
+                p.mz = in.readDouble();
+                break;
+            case Protocol.DROP_REMOVE:
+                p.i1 = in.readInt();
+                p.i2 = in.readUnsignedByte();
+                break;
+            case Protocol.INVENTORY_REPORT: {
+                int n = in.readUnsignedByte();
+                if (n > 48) {
+                    throw new IOException("Invalid inventory packet");
+                }
+                p.inv = new int[n * 3];
+                for (int i = 0; i < n; i++) {
+                    p.inv[i * 3] = in.readShort();
+                    p.inv[i * 3 + 1] = in.readInt();
+                    p.inv[i * 3 + 2] = in.readShort();
+                }
+                break;
+            }
             case Protocol.INVENTORY: {
                 int n = in.readUnsignedByte();
                 if (n > 48) {
@@ -408,7 +441,7 @@ public class PlayerConnection {
         }
     }
 
-    // ------------------------------------------------------------------ paketler
+    // ------------------------------------------------------------------ packets
 
     /** Raw chunk data; compression happens on the write thread. */
     public static final class ChunkPacket implements OutPacket {
@@ -567,7 +600,7 @@ public class PlayerConnection {
         });
     }
 
-    /** Iki int alanli paketler (REMOVE_ITEM, HELD_ITEM'in int kismi haric). */
+    /** Packets with two int fields (REMOVE_ITEM; HELD_ITEM is the exception, its int part). */
     public void sendInts(final int packetId, final int... values) {
         send(new OutPacket() {
             public void write(DataOutputStream o) throws IOException {
@@ -671,6 +704,48 @@ public class PlayerConnection {
                 o.writeByte(Protocol.MOUNT);
                 o.writeInt(playerId);
                 o.writeInt(vehicleId);
+            }
+        });
+    }
+
+    /** Build 316: an item that appeared in another player's game. */
+    public void sendDropSpawn(final int number, final int id, final int count, final int damage, final double[] v) {
+        send(new OutPacket() {
+            public void write(DataOutputStream o) throws IOException {
+                o.writeByte(Protocol.DROP_SPAWN);
+                o.writeInt(number);
+                o.writeShort(id);
+                o.writeShort(count);
+                o.writeShort(damage);
+                for (int i = 0; i < 6; i++) {
+                    o.writeDouble(v[i]);
+                }
+            }
+        });
+    }
+
+    /** Build 316: that item entity is gone. */
+    public void sendDropRemove(final int number) {
+        send(new OutPacket() {
+            public void write(DataOutputStream o) throws IOException {
+                o.writeByte(Protocol.DROP_REMOVE);
+                o.writeInt(number);
+            }
+        });
+    }
+
+    /** The saved inventory of the player (builds 227 and 313): n times (id, count, damage); n = 0: nothing saved. */
+    public void sendInventorySync(final int[] triples) {
+        send(new OutPacket() {
+            public void write(DataOutputStream o) throws IOException {
+                o.writeByte(Protocol.INVENTORY_SYNC);
+                int n = triples.length / 3;
+                o.writeByte(n);
+                for (int i = 0; i < n; i++) {
+                    o.writeShort(triples[i * 3]);
+                    o.writeInt(triples[i * 3 + 1]);
+                    o.writeShort(triples[i * 3 + 2]);
+                }
             }
         });
     }

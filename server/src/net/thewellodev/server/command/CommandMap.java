@@ -18,7 +18,17 @@ public class CommandMap {
     private final Map<String, Command> known = new TreeMap<String, Command>();
     private final Map<Command, Plugin> owners = new java.util.HashMap<Command, Plugin>();
 
+    private final java.util.Set<String> disabled = new java.util.HashSet<String>();
+
+    /** Built-in commands that are not registered (they do not exist in the running game build). Call before registering. */
+    public void disableBuiltins(Collection<String> names) {
+        disabled.addAll(names);
+    }
+
     public void registerBuiltin(Command cmd) {
+        if (disabled.contains(cmd.getName())) {
+            return;
+        }
         known.put(cmd.getName(), cmd);
         for (String a : cmd.getAliases()) {
             if (!known.containsKey(a)) {

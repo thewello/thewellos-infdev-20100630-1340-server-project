@@ -27,7 +27,7 @@ public class TWRemotePlayer extends gi {
         steps = 3;
     }
 
-    /** onLivingUpdate: fizik yerine interpolasyon */
+    /** onLivingUpdate: interpolation instead of physics */
     public void e() {
         if (steps > 0) {
             double nx = j + (tx - j) / steps;
@@ -48,7 +48,7 @@ public class TWRemotePlayer extends gi {
         if (aw > 0) {
             aw--; // damage animation (red flash)
         }
-        // Kol/bacak sallanma animasyonu
+        // Arm and leg swing animation
         aG = aH;
         double dx = j - g;
         double dz = l - i;

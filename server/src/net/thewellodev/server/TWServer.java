@@ -31,6 +31,7 @@ import net.thewellodev.api.event.server.ServerCommandEvent;
 import net.thewellodev.api.event.world.ItemSpawnEvent;
 import net.thewellodev.api.plugin.PluginManager;
 import net.thewellodev.api.util.ChatColor;
+import net.thewellodev.protocol.GameVersion;
 import net.thewellodev.protocol.Protocol;
 import net.thewellodev.server.command.BuiltinCommands;
 import net.thewellodev.server.command.CommandMap;
@@ -72,12 +73,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/** TheWelloDev server. */
+/** The server. */
 public class TWServer implements Server {
 
-    public static final String NAME = "TheWelloDev";
-    public static final String VERSION = "1.0.0";
-    public static final String GAME_VERSION = "inf-20100630-1340";
+    public static final String NAME = "TheWello's Infdev Server";
+    public static final String VERSION = "2.0.0";
 
     private final Logger logger;
     private final File dir;
@@ -143,8 +143,12 @@ public class TWServer implements Server {
     private int spawnProtection;
     private int autosaveTicks;
     private String levelName;
+    /** The build this server runs (game-version in server.properties). */
+    private GameVersion gameVersion;
+    /** Folder that holds the worlds of the selected build. */
+    private File worldRoot;
 
-    // istatistik
+    // statistics
     private long tickCount;
     private final long startTime = System.currentTimeMillis();
     private final long[] tickTimes = new long[100];
@@ -163,11 +167,21 @@ public class TWServer implements Server {
     // ================================================================ startup
 
     public void start() throws Exception {
-        logger.info("TheWelloDev " + VERSION + " starting (" + GAME_VERSION + ", Java "
+        String versionId = config.getString("game-version", GameVersion.INF_20100630_1340.id);
+        gameVersion = GameVersion.byId(versionId);
+        if (gameVersion == null) {
+            throw new IOException("Unknown game-version '" + versionId + "' in server.properties. Known builds: "
+                    + GameVersion.idList());
+        }
+        if (!gameVersion.supported) {
+            throw new IOException(gameVersion.id + " is recognised, but its server code is not finished yet. "
+                    + "Set game-version in server.properties to a supported build.");
+        }
+        logger.info("TheWello's Infdev Server " + VERSION + " starting (" + gameVersion.id + ", Java "
                 + System.getProperty("java.version") + ")");
         port = config.getInt("server-port", Protocol.DEFAULT_PORT);
         ip = config.getString("server-ip", "");
-        motd = config.getString("motd", "&eA TheWelloDev server");
+        motd = config.getString("motd", "&eA TheWello's Infdev server");
         maxPlayers = config.getInt("max-players", 20);
         viewDistance = Math.max(2, Math.min(15, config.getInt("view-distance", 6)));
         levelName = config.getString("level-name", "world");
@@ -196,14 +210,14 @@ public class TWServer implements Server {
         loadList("white-list.txt", whitelist);
         loadPermissions();
 
-        // Game jar
-        File gameJar = findGameJar(gameJarName);
+        // Game jar: it must belong to the selected build
+        File gameJar = findGameJar(gameJarName, gameVersion);
         if (gameJar == null) {
-            throw new IOException("Game jar not found. Put inf-20100630-1340-mp.jar (or the original inf-20100630-1340.jar) "
-                    + "in the server folder (or set game-jar in server.properties).");
+            throw new IOException("No game jar for " + gameVersion.id + " was found. Put the patched client jar of that build "
+                    + "(or its original jar) in the server folder, or set game-jar in server.properties.");
         }
         logger.info("Loading game code: " + gameJar.getName());
-        GameClassLoader gcl = new GameClassLoader(gameJar, TWServer.class.getClassLoader());
+        GameClassLoader gcl = new GameClassLoader(gameJar, TWServer.class.getClassLoader(), gameVersion);
         bridge = gcl.createBridge();
         bridge.setBlockListener(new GameBridge.BlockListener() {
             public void onBlockChanged(int x, int y, int z) {
@@ -221,7 +235,12 @@ public class TWServer implements Server {
         }
         logger.info("Loading world: '" + levelName + "'" + (seed != null ? " (seed " + seed + ")" : ""));
         mainThread = Thread.currentThread();
-        bridge.load(dir, levelName, seed);
+        startFreezeWatch();
+        worldRoot = prepareWorldRoot();
+        // a world of an older build is taken over: its chunks are converted when first needed (the old world stays as it is)
+        bridge.setLegacyWorld(net.thewellodev.server.world.WorldConverter.prepare(new File(dir, "worlds"), levelName,
+                gameVersion, logger));
+        bridge.load(worldRoot, levelName, seed);
         gcl.verifyHooks();
         bridge.setMobSettings(difficulty, spawnMonsters, spawnAnimals);
         bridge.setMobCaps(mobCapMonsters, mobCapAnimals);
@@ -275,6 +294,25 @@ public class TWServer implements Server {
         logger.info("Spawn ready (" + (System.currentTimeMillis() - t0) + " ms)");
 
         TheWello.setServer(this);
+        if (gameVersion == GameVersion.INF_20100227_1433) {
+            // this build has its own plugin API (net.thewellodev.api227): a view of this server and its events
+            net.thewellodev.server.api227.Server227Impl view = new net.thewellodev.server.api227.Server227Impl(this);
+            net.thewellodev.api227.TheWello227.setServer(view);
+            pluginManager.setTranslator(new net.thewellodev.server.api227.Events227(pluginManager, view.api()));
+        }
+        if (gameVersion == GameVersion.INF_20100313) {
+            // this build has its own plugin API too (net.thewellodev.api313)
+            net.thewellodev.server.api313.Server313Impl view = new net.thewellodev.server.api313.Server313Impl(this);
+            net.thewellodev.api313.TheWello313.setServer(view);
+            pluginManager.setTranslator(new net.thewellodev.server.api313.Events313(pluginManager, view.api()));
+        }
+        if (gameVersion == GameVersion.INF_20100316) {
+            // this build has its own plugin API too (net.thewellodev.api316)
+            net.thewellodev.server.api316.Server316Impl view = new net.thewellodev.server.api316.Server316Impl(this);
+            net.thewellodev.api316.TheWello316.setServer(view);
+            pluginManager.setTranslator(new net.thewellodev.server.api316.Events316(pluginManager, view.api()));
+        }
+        commandMap.disableBuiltins(gameVersion.unavailableCommands);
         BuiltinCommands.registerAll(this, commandMap);
         pluginManager.loadPlugins(new File(dir, "plugins"));
         pluginManager.enableAll();
@@ -315,10 +353,11 @@ public class TWServer implements Server {
     }
 
     /**
-     * The jar that holds the game code. "auto": inf-20100630-1340*.jar in the server folder (original or MP
-     * TheWelloDev MP version), otherwise the BetaCraft versions folder.
+     * The jar that holds the game code of the selected build. An explicit name must identify as that build.
+     * "auto" takes the first "inf-*.jar" in the server folder (or the BetaCraft versions folder) that identifies
+     * as that build; jars of other builds are skipped.
      */
-    private File findGameJar(String name) {
+    private File findGameJar(String name, GameVersion want) throws IOException {
         List<File> dirs = new ArrayList<File>();
         dirs.add(dir);
         String appdata = System.getenv("APPDATA");
@@ -328,35 +367,74 @@ public class TWServer implements Server {
         dirs.add(new File(System.getProperty("user.home"), "AppData/Roaming/.betacraft/versions"));
         if (!name.equalsIgnoreCase("auto")) {
             File f = new File(name);
-            if (f.isAbsolute()) {
-                return f.isFile() ? f : null;
-            }
-            for (File d : dirs) {
-                File c = new File(d, name);
-                if (c.isFile()) {
-                    return c;
-                }
-            }
-            return null;
-        }
-        String[] names = {"inf-20100630-1340.jar", "inf-20100630-1340-mp.jar"};
-        for (File d : dirs) {
-            for (String n : names) {
-                File c = new File(d, n);
-                if (c.isFile()) {
-                    return c;
-                }
-            }
-            File[] list = d.listFiles();
-            if (list != null) {
-                for (File c : list) {
-                    if (c.isFile() && c.getName().startsWith("inf-20100630-1340") && c.getName().endsWith(".jar")) {
-                        return c;
+            if (!f.isAbsolute()) {
+                File found = null;
+                for (File d : dirs) {
+                    File c = new File(d, name);
+                    if (c.isFile()) {
+                        found = c;
+                        break;
                     }
+                }
+                f = found;
+            }
+            if (f == null || !f.isFile()) {
+                return null;
+            }
+            GameVersion got = GameVersion.identify(f);
+            if (got != want) {
+                throw new IOException(f.getName() + " is " + (got == null ? "not a known game jar" : got.id)
+                        + ", but game-version is " + want.id + ".");
+            }
+            return f;
+        }
+        for (File d : dirs) {
+            File[] list = d.listFiles();
+            if (list == null) {
+                continue;
+            }
+            java.util.Arrays.sort(list);
+            for (File c : list) {
+                if (!c.isFile() || !c.getName().startsWith("inf-") || !c.getName().endsWith(".jar")) {
+                    continue;
+                }
+                GameVersion got;
+                try {
+                    got = GameVersion.identify(c);
+                } catch (IOException e) {
+                    continue; // not a readable jar
+                }
+                if (got == want) {
+                    return c;
+                }
+                if (got != null) {
+                    logger.info("Skipping " + c.getName() + " (it is " + got.id + ")");
                 }
             }
         }
         return null;
+    }
+
+    /**
+     * Worlds of each build are kept apart in worlds/&lt;build id&gt;/. Worlds saved by earlier versions of this
+     * server (folder next to server.properties, build inf-20100630-1340) are moved there once.
+     */
+    private File prepareWorldRoot() {
+        File root = new File(new File(dir, "worlds"), gameVersion.id);
+        root.mkdirs();
+        if (gameVersion == GameVersion.INF_20100630_1340) {
+            File legacy = new File(dir, levelName);
+            File target = new File(root, levelName);
+            if (legacy.isDirectory() && !target.exists()) {
+                if (legacy.renameTo(target)) {
+                    logger.info("Moved the world '" + levelName + "' to " + target.getPath());
+                } else {
+                    logger.warning("Could not move the world '" + legacy.getPath() + "' to " + target.getPath()
+                            + ". Move it by hand, or the server will create a new world.");
+                }
+            }
+        }
+        return root;
     }
 
     // Connection flood protection (used by the accept thread)
@@ -426,7 +504,7 @@ public class TWServer implements Server {
             try {
                 Socket s = serverSocket.accept();
                 String addr = s.getInetAddress().getHostAddress();
-                PlayerConnection c = new PlayerConnection(s);
+                PlayerConnection c = new PlayerConnection(s, gameVersion.protocol);
                 if (!admitConnection(addr, c)) {
                     s.close();
                     continue;
@@ -441,7 +519,7 @@ public class TWServer implements Server {
         }
     }
 
-    // ================================================================ ana dongu
+    // ================================================================ main loop
 
     public void run() {
         mainThread = Thread.currentThread();
@@ -476,7 +554,56 @@ public class TWServer implements Server {
         doStop();
     }
 
+    /** When the last tick began (for the freeze watch). */
+    private volatile long tickStartedMs = System.currentTimeMillis();
+    private Thread freezeWatch;
+
+    /**
+     * A server that hangs says nothing: this thread writes what the main thread is doing to logs/freeze-*.txt when
+     * one tick takes more than 8 seconds (once for each freeze).
+     */
+    private void startFreezeWatch() {
+        final Thread main = mainThread;
+        freezeWatch = new Thread("TW freeze watch") {
+            public void run() {
+                long reported = 0;
+                while (true) {
+                    try {
+                        Thread.sleep(2000);
+                    } catch (InterruptedException e) {
+                        return;
+                    }
+                    long started = tickStartedMs;
+                    if (System.currentTimeMillis() - started > 8000 && reported != started) {
+                        reported = started;
+                        StringBuilder sb = new StringBuilder("The server tick has been running for "
+                                + (System.currentTimeMillis() - started) / 1000 + " s. The main thread is here:\n");
+                        for (StackTraceElement e : main.getStackTrace()) {
+                            sb.append("    at ").append(e).append('\n');
+                        }
+                        File dirLogs = new File(dir, "logs");
+                        dirLogs.mkdirs();
+                        File f = new File(dirLogs, "freeze-" + new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss")
+                                .format(new java.util.Date()) + ".txt");
+                        try {
+                            Writer w = new OutputStreamWriter(new FileOutputStream(f), "UTF-8");
+                            w.write(sb.toString());
+                            w.close();
+                        } catch (IOException ex) {
+                            // nothing more to do
+                        }
+                        logger.severe("The server seems to be frozen (a tick takes more than 8 s). Where it is stuck was "
+                                + "written to " + f.getPath());
+                    }
+                }
+            }
+        };
+        freezeWatch.setDaemon(true);
+        freezeWatch.start();
+    }
+
     private void tick() {
+        tickStartedMs = System.currentTimeMillis();
         tickCount++;
         soundBudget = 0;
         particleBudget = 0;
@@ -633,7 +760,7 @@ public class TWServer implements Server {
                 }
                 c.authState = 2;
                 final String user = c.username, sid = c.authServerId;
-                // Sinirli havuz: sel saldirisinda bile en fazla 4 eszamanli Mojang istegi
+                // Limited pool: even in a flood of logins at most 4 requests to Mojang run at the same time
                 authPool.execute(new Runnable() {
                     public void run() {
                         if (c.isClosed()) {
@@ -695,6 +822,7 @@ public class TWServer implements Server {
         // position
         // The client keeps its own inventory per server address, so a first visit to this world may still carry items from another world
         boolean firstVisit = !playerFile(name).exists();
+        loadInventoryFile(p);
         if (!loadPlayerData(p)) {
             int[] sp = bridge.getSpawn();
             double[] safe = safeSpawn(sp[0], sp[2]);
@@ -758,9 +886,13 @@ public class TWServer implements Server {
         if (p.gameMode != 0) {
             c.sendGameMode(p.gameMode);
         }
+        if (gameVersion != null && gameVersion.protocol != Protocol.VERSION) {
+            int[] saved = p.savedInv;
+            c.sendInventorySync(saved == null ? new int[0] : saved);
+        }
         logger.info(name + " [" + c.getAddressString() + "] joined (id " + p.getEntityId() + ") at "
                 + String.format("%.1f %.1f %.1f", p.x, p.y, p.z));
-        PlayerJoinEvent je = pluginManager.callEvent(new PlayerJoinEvent(p, "&e" + name + " oyuna katildi."));
+        PlayerJoinEvent je = pluginManager.callEvent(new PlayerJoinEvent(p, "&e" + name + " joined the game."));
         if (je.getJoinMessage() != null) {
             broadcastMessage(je.getJoinMessage());
         }
@@ -781,9 +913,9 @@ public class TWServer implements Server {
                 o.getConnection().sendRemovePlayer(p.getEntityId());
             }
         }
-        logger.info(p.getName() + " ayrildi: " + reason);
+        logger.info(p.getName() + " left: " + reason);
         if (announce) {
-            PlayerQuitEvent qe = pluginManager.callEvent(new PlayerQuitEvent(p, "&e" + p.getName() + " oyundan ayrildi."));
+            PlayerQuitEvent qe = pluginManager.callEvent(new PlayerQuitEvent(p, "&e" + p.getName() + " left the game."));
             if (qe.getQuitMessage() != null) {
                 broadcastMessage(qe.getQuitMessage());
             }
@@ -793,7 +925,7 @@ public class TWServer implements Server {
 
     public void kickPlayer(TWPlayer p, String reason) {
         checkPrimary();
-        PlayerKickEvent ke = pluginManager.callEvent(new PlayerKickEvent(p, reason, "&e" + p.getName() + " oyundan atildi."));
+        PlayerKickEvent ke = pluginManager.callEvent(new PlayerKickEvent(p, reason, "&e" + p.getName() + " was kicked from the game."));
         if (ke.isCancelled()) {
             return;
         }
@@ -807,7 +939,7 @@ public class TWServer implements Server {
                     o.getConnection().sendRemovePlayer(p.getEntityId());
                 }
             }
-            logger.info(p.getName() + " atildi: " + ke.getReason());
+            logger.info(p.getName() + " was kicked: " + ke.getReason());
             if (ke.getLeaveMessage() != null) {
                 broadcastMessage(ke.getLeaveMessage());
             }
@@ -819,7 +951,7 @@ public class TWServer implements Server {
         playerSnapshot = Collections.unmodifiableList(new ArrayList<TWPlayer>(players.values()));
     }
 
-    // ================================================================ paketler
+    // ================================================================ packets
 
     private void processPackets(TWPlayer p) {
         PlayerConnection c = p.getConnection();
@@ -871,6 +1003,15 @@ public class TWServer implements Server {
                     break;
                 case Protocol.INVENTORY:
                     handleInventory(p, in.inv);
+                    break;
+                case Protocol.INVENTORY_REPORT:
+                    handleInventoryReport(p, in.inv);
+                    break;
+                case Protocol.DROP_SPAWN:
+                    handleDropSpawn(p, in);
+                    break;
+                case Protocol.DROP_REMOVE:
+                    handleDropRemove(p, in);
                     break;
                 case Protocol.DEATH:
                     handleDeath(p);
@@ -1824,6 +1965,60 @@ public class TWServer implements Server {
     }
 
     /** Inventory summary: flags invalid or forbidden items and sudden large increases (the server does not store the inventory). */
+    /**
+     * Builds 227 and 313 keep the inventory on the client, which starts from the game's own default in every build
+     * (a different one in each). The server saves what the client reports and sends it back at the next login, so a
+     * player keeps the inventory when the server moves to another build; players who were never saved start with the
+     * build's default.
+     */
+    private static int dropNumber(TWPlayer p, int seq) {
+        return ((p.getEntityId() & 0x7FF) << 20) | (seq & 0xFFFFF);
+    }
+
+    /**
+     * Build 316: the game of each player runs its own items (blocks drop, items can be thrown). The server only passes
+     * them on, so that every player sees the items of the others.
+     */
+    private void handleDropSpawn(TWPlayer p, PlayerConnection.InPacket in) {
+        if (gameVersion != GameVersion.INF_20100316 || !p.allow("dropspawn", 40) || in.i2 <= 0 || in.i2 > 2000
+                || in.i3 <= 0 || in.i3 > 999) {
+            return;
+        }
+        double[] v = {in.x, in.y, in.z, in.mx, in.my, in.mz};
+        for (TWPlayer q : players.values()) {
+            if (q != p) {
+                q.getConnection().sendDropSpawn(dropNumber(p, in.i1), in.i2, in.i3, in.i4, v);
+            }
+        }
+    }
+
+    private void handleDropRemove(TWPlayer p, PlayerConnection.InPacket in) {
+        if (gameVersion != GameVersion.INF_20100316 || !p.allow("dropremove", 80)) {
+            return;
+        }
+        int number = in.i2 == 1 ? dropNumber(p, in.i1) : in.i1;
+        for (TWPlayer q : players.values()) {
+            if (q != p) {
+                q.getConnection().sendDropRemove(number);
+            }
+        }
+    }
+
+    private void handleInventoryReport(TWPlayer p, int[] inv) {
+        if (inv == null || inv.length > 48 * 3 || !p.allow("invreport", 4)) {
+            return;
+        }
+        int[] clean = new int[inv.length];
+        for (int i = 0; i + 2 < inv.length; i += 3) {
+            // blocks are 0 to 255, items (tools, arrows) go above that
+            boolean empty = inv[i] < 0 || inv[i] > 2000 || inv[i + 1] <= 0;
+            clean[i] = empty ? -1 : inv[i];
+            clean[i + 1] = empty ? 0 : Math.min(inv[i + 1], 9999);
+            clean[i + 2] = empty ? 0 : Math.max(0, Math.min(inv[i + 2], 5000));
+        }
+        p.savedInv = clean;
+    }
+
     private void handleInventory(TWPlayer p, int[] inv) {
         if (inv == null || !p.allow("inv", 6)) {
             return;
@@ -1841,6 +2036,17 @@ public class TWServer implements Server {
     /** The nearest safe spawn point (no lava, water or fire) to {x, y, z}. */
     private double[] safeSpawn(int x, int z) {
         Set<Long> prepared = new java.util.HashSet<Long>();
+        if (x == 0 && z == 0 && gameVersion != null && gameVersion.protocol != net.thewellodev.protocol.Protocol.VERSION) {
+            for (int cx = -1; cx <= 0; cx++) {
+                for (int cz = -1; cz <= 0; cz++) {
+                    bridge.getChunkData(cx, cz);
+                }
+            }
+            double[] exact = bridge.exactSpawn();
+            if (exact != null) {
+                return exact;
+            }
+        }
         for (int r = 0; r <= 24; r++) {
             for (int dx = -r; dx <= r; dx++) {
                 for (int dz = -r; dz <= r; dz++) {
@@ -2078,6 +2284,57 @@ public class TWServer implements Server {
 
     // ================================================================ console
 
+    private boolean convertingWorld;
+
+    /**
+     * /convertworld: takes over the chunks of the older world that nobody has visited yet, a batch of files every tick
+     * (the server keeps running). When all are done the world is marked complete (WorldConverter).
+     */
+    public void startWorldConversion(final CommandSender sender) {
+        if (convertingWorld) {
+            sender.sendMessage("&eThe world is being converted already.");
+            return;
+        }
+        if (bridge.convertLegacyBatch(0) < 0) {
+            sender.sendMessage("&eNothing to convert: this world has no older world left to take chunks from.");
+            return;
+        }
+        convertingWorld = true;
+        sender.sendMessage("&eConverting the rest of the world in the background (the server keeps running) ...");
+        final int[] total = {0};
+        mainTasks.add(new Runnable() {
+            public void run() {
+                int n;
+                try {
+                    n = bridge.convertLegacyBatch(200);
+                } catch (RuntimeException ex) {
+                    convertingWorld = false;
+                    logger.severe("Converting the world stopped: " + ex);
+                    sender.sendMessage("&cConverting stopped: " + ex.getMessage());
+                    return;
+                }
+                if (n > 0) {
+                    total[0] += n;
+                    mainTasks.add(this); // the next batch on the next tick
+                    return;
+                }
+                convertingWorld = false;
+                File levelDir = new File(worldRoot, levelName);
+                String from = net.thewellodev.server.world.WorldConverter.origin(levelDir);
+                try {
+                    net.thewellodev.server.world.WorldConverter.markComplete(levelDir);
+                } catch (IOException ex) {
+                    logger.warning("Could not mark the world as converted: " + ex);
+                }
+                bridge.save(true);
+                logger.info("The world was converted: " + total[0] + " more chunks were taken over"
+                        + (from == null ? "." : " from " + from + ". worlds/" + from + "/" + levelName + " is not needed any more."));
+                sender.sendMessage("&aThe world is converted completely (" + total[0] + " more chunks"
+                        + (from == null ? "" : "; worlds/" + from + "/" + levelName + " can be deleted now") + ").");
+            }
+        });
+    }
+
     /** Runs a task on the main thread (can be called from any thread). */
     public void runOnMainThread(Runnable task) {
         mainTasks.add(task);
@@ -2164,7 +2421,7 @@ public class TWServer implements Server {
         return true;
     }
 
-    // ================================================================ durdurma
+    // ================================================================ shutdown
 
     public void shutdown() {
         running = false;
@@ -2262,7 +2519,7 @@ public class TWServer implements Server {
             }
             w.close();
         } catch (IOException e) {
-            logger.warning(file + " yazilamadi: " + e);
+            logger.warning(file + " could not be written: " + e);
         }
     }
 
@@ -2275,7 +2532,7 @@ public class TWServer implements Server {
         if (!f.exists()) {
             try {
                 Writer w = new OutputStreamWriter(new FileOutputStream(f), "UTF-8");
-                w.write("# TheWelloDev permission file. Operators have every permission.\n");
+                w.write("# TheWello's Infdev Server permission file. Operators have every permission.\n");
                 w.write("# Format:  playername: perm.one, perm.two\n");
                 w.write("#          *: permission.for.everyone\n");
                 w.write("# Example:  *: thewello.command.seed\n");
@@ -2334,9 +2591,59 @@ public class TWServer implements Server {
     }
 
     private File playerFile(String name) {
-        File d = new File(new File(dir, levelName), "players");
+        File d = new File(new File(worldRoot, levelName), "players");
         d.mkdirs();
         return new File(d, name.toLowerCase(java.util.Locale.ENGLISH) + ".txt");
+    }
+
+    private File inventoryFile(String name) {
+        return new File(new File(new File(worldRoot, levelName), "players"),
+                name.toLowerCase(java.util.Locale.ENGLISH) + ".inv");
+    }
+
+    /** One line for each slot: "id count damage" (id -1: empty). */
+    private void saveInventoryFile(TWPlayer p) {
+        int[] inv = p.savedInv;
+        if (inv == null) {
+            return;
+        }
+        try {
+            Writer w = new OutputStreamWriter(new FileOutputStream(inventoryFile(p.getName())), "UTF-8");
+            for (int i = 0; i + 2 < inv.length; i += 3) {
+                w.write(inv[i] + " " + inv[i + 1] + " " + inv[i + 2] + "\n");
+            }
+            w.close();
+        } catch (IOException e) {
+            logger.warning(p.getName() + " inventory could not be saved: " + e);
+        }
+    }
+
+    private void loadInventoryFile(TWPlayer p) {
+        File f = inventoryFile(p.getName());
+        if (!f.isFile()) {
+            return;
+        }
+        try {
+            BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(f), "UTF-8"));
+            java.util.List<Integer> values = new java.util.ArrayList<Integer>();
+            String line;
+            while ((line = r.readLine()) != null && values.size() < 48 * 3) {
+                String[] v = line.trim().split(" ");
+                if (v.length == 3) {
+                    values.add(Integer.parseInt(v[0]));
+                    values.add(Integer.parseInt(v[1]));
+                    values.add(Integer.parseInt(v[2]));
+                }
+            }
+            r.close();
+            int[] inv = new int[values.size()];
+            for (int i = 0; i < inv.length; i++) {
+                inv[i] = values.get(i);
+            }
+            p.savedInv = inv;
+        } catch (Exception e) {
+            logger.warning(p.getName() + " inventory could not be read: " + e);
+        }
     }
 
     private boolean loadPlayerData(TWPlayer p) {
@@ -2353,9 +2660,7 @@ public class TWServer implements Server {
             p.z = Double.parseDouble(v[2]);
             p.yaw = Float.parseFloat(v[3]);
             p.pitch = Float.parseFloat(v[4]);
-            if (v.length > 5) {
-                p.gameMode = Integer.parseInt(v[5]) == 1 ? 1 : 0;
-            }
+            p.gameMode = 0; // the game mode is not kept between visits: everyone joins in survival
             if (p.y < -10 || Double.isNaN(p.y)) {
                 return false;
             }
@@ -2371,6 +2676,7 @@ public class TWServer implements Server {
             Writer w = new OutputStreamWriter(new FileOutputStream(playerFile(p.getName())), "UTF-8");
             w.write(p.x + " " + p.y + " " + p.z + " " + p.yaw + " " + p.pitch + " " + p.gameMode + "\n");
             w.close();
+            saveInventoryFile(p);
         } catch (IOException e) {
             logger.warning(p.getName() + " player data could not be saved: " + e);
         }
@@ -2407,8 +2713,13 @@ public class TWServer implements Server {
         return VERSION;
     }
 
+    /** Chunks in memory (-1 when the build cannot tell). */
+    public int getLoadedChunkCount() {
+        return bridge == null ? -1 : bridge.getLoadedChunkCount();
+    }
+
     public String getGameVersion() {
-        return GAME_VERSION;
+        return gameVersion == null ? GameVersion.INF_20100630_1340.id : gameVersion.id;
     }
 
     public Collection<? extends Player> getOnlinePlayers() {

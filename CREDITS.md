@@ -1,11 +1,11 @@
 # Credits
 
-TheWello's inf-20100630-1340 Server Project was written for this repository. It builds on, was inspired by, or
+TheWello's Infdev Server Project was written for this repository. It builds on, was inspired by, or
 depends on the projects below. Thank you to everyone who made them.
 
 ## The game
 
-- **Minecraft Infdev `inf-20100630-1340`**: created by Markus "Notch" Persson and Mojang AB. The game code is not
+- **Minecraft Infdev** (builds `inf-20100227-1433`, `inf-20100313`, `inf-20100316` and `inf-20100630-1340`): created by Markus "Notch" Persson and Mojang AB. The game code is not
   included in this repository; you need your own copy. Minecraft is a trademark of Mojang AB.
 - **Mojang and Microsoft services**: the session server (`sessionserver.mojang.com`) and the profile service
   (`api.minecraftservices.com`) verify accounts when `online-mode=true`. This project is not affiliated with them.

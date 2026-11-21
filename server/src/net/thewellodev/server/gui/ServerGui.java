@@ -60,7 +60,7 @@ import java.util.logging.Level;
 /** The server control window. */
 public class ServerGui {
 
-    // Renkler
+    // Colours
     static final Color BG = new Color(0x1E1F22);
     static final Color PANEL = new Color(0x2B2D31);
     static final Color PANEL2 = new Color(0x313338);
@@ -104,6 +104,7 @@ public class ServerGui {
     private volatile boolean started;
     private volatile boolean failed;
     private JButton stopButton;
+    private JLabel subLabel;
 
     public static ServerGui open(final TWServer server) throws Exception {
         final ServerGui[] out = new ServerGui[1];
@@ -121,8 +122,23 @@ public class ServerGui {
             UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
         } catch (Exception ignored) {
         }
-        frame = new JFrame("TheWelloDev Server - " + TWServer.GAME_VERSION);
+        frame = new JFrame("TheWello's Infdev Server - " + server.getGameVersion());
         frame.setIconImage(makeIcon());
+        // The window opens before the server has read server.properties: refresh the build name until it is known
+        final javax.swing.Timer versionTimer = new javax.swing.Timer(500, null);
+        versionTimer.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                frame.setTitle("TheWello's Infdev Server - " + ServerGui.this.server.getGameVersion());
+                if (subLabel != null) {
+                    subLabel.setText("Minecraft " + ServerGui.this.server.getGameVersion() + "  •  version "
+                            + TWServer.VERSION + "  •  Infdev server with plugin support (plugin API)");
+                }
+                if (started || failed) {
+                    versionTimer.stop();
+                }
+            }
+        });
+        versionTimer.start();
         frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         frame.addWindowListener(new WindowAdapter() {
             public void windowClosing(WindowEvent e) {
@@ -171,17 +187,18 @@ public class ServerGui {
         input.requestFocusInWindow();
     }
 
-    // ---------------------------------------------------------------- yerlesim
+    // ---------------------------------------------------------------- layout
 
     private JComponent buildHeader() {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(PANEL);
         p.setBorder(new EmptyBorder(10, 14, 10, 14));
-        JLabel title = new JLabel("TheWelloDev Server");
+        JLabel title = new JLabel("TheWello's Infdev Server");
         title.setForeground(Color.WHITE);
         title.setFont(new Font("SansSerif", Font.BOLD, 20));
-        JLabel sub = new JLabel("Minecraft " + TWServer.GAME_VERSION + "  •  version " + TWServer.VERSION
-                + "  •  Infdev server with plugin support (TheWelloDev API)");
+        JLabel sub = new JLabel("Minecraft " + server.getGameVersion() + "  •  version " + TWServer.VERSION
+                + "  •  Infdev server with plugin support (plugin API)");
+        subLabel = sub;
         sub.setForeground(MUTED);
         sub.setFont(new Font("SansSerif", Font.PLAIN, 12));
         JPanel left = new JPanel();
@@ -200,7 +217,7 @@ public class ServerGui {
         addr.setBorder(new EmptyBorder(0, 30, 0, 20));
         addr.add(addressRow("Internet:", wanField, true));
         addr.add(addressRow("LAN / home network:", lanField, false));
-        vpnRow = addressRow("VPN (Radmin vb.):", vpnField, false);
+        vpnRow = addressRow("VPN (Radmin, Hamachi, ...):", vpnField, false);
         vpnRow.setVisible(false);
         addr.add(vpnRow);
         netStatus.setForeground(MUTED);
@@ -235,7 +252,7 @@ public class ServerGui {
         field.setFont(new Font(Font.MONOSPACED, Font.BOLD, 13));
         field.setBorder(new EmptyBorder(2, 6, 2, 6));
         field.setText("loading...");
-        JButton copy = button("Kopyala", BLUE);
+        JButton copy = button("Copy", BLUE);
         copy.setBorder(new EmptyBorder(3, 10, 3, 10));
         copy.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
@@ -281,7 +298,7 @@ public class ServerGui {
         p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
         p.setPreferredSize(new Dimension(290, 100));
 
-        p.add(sectionTitle("Bellek (RAM)"));
+        p.add(sectionTitle("Memory (RAM)"));
         ramLabel.setForeground(TEXT);
         ramLabel.setFont(new Font("SansSerif", Font.BOLD, 15));
         ramLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -305,12 +322,12 @@ public class ServerGui {
         grid.setOpaque(false);
         grid.setAlignmentX(Component.LEFT_ALIGNMENT);
         addStat(grid, "TPS", tpsValue);
-        addStat(grid, "Tick suresi", msptValue);
+        addStat(grid, "Tick time", msptValue);
         addStat(grid, "Players", playersValue);
         addStat(grid, "Chunks sent", chunksValue);
         addStat(grid, "Entity", entitiesValue);
         addStat(grid, "Thread", threadsValue);
-        addStat(grid, "Calisma suresi", uptimeValue);
+        addStat(grid, "Uptime", uptimeValue);
         grid.add(new JLabel());
         grid.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
         p.add(grid);
@@ -437,7 +454,7 @@ public class ServerGui {
         JPanel btns = new JPanel(new GridLayout(0, 1, 4, 4));
         btns.setOpaque(false);
         btns.add(playerAction("Message (tell)", "tell", true));
-        btns.add(playerAction("Spawn'a isinla", "tp", false));
+        btns.add(playerAction("Teleport to spawn", "tp", false));
         btns.add(playerAction("Inventory", "inv", false));
         btns.add(playerAction("Op yap / al", "op", false));
         btns.add(playerAction("At (kick)", "kick", false));
@@ -479,7 +496,7 @@ public class ServerGui {
         return b;
     }
 
-    // ---------------------------------------------------------------- yardimci bilesenler
+    // ---------------------------------------------------------------- helper components
 
     private static JPanel card() {
         JPanel p = new JPanel();
@@ -551,7 +568,7 @@ public class ServerGui {
         return (r.totalMemory() - r.freeMemory()) / 1048576L;
     }
 
-    // ---------------------------------------------------------------- davranis
+    // ---------------------------------------------------------------- behaviour
 
     private void submit() {
         String text = input.getText().trim();
@@ -618,7 +635,7 @@ public class ServerGui {
                 status.setForeground(RED);
                 stopButton.setText("Close");
                 JOptionPane.showMessageDialog(frame, "The server could not start:\n" + t.getMessage(),
-                        "TheWelloDev", JOptionPane.ERROR_MESSAGE);
+                        "TheWello's Infdev Server", JOptionPane.ERROR_MESSAGE);
             }
         });
     }
@@ -757,7 +774,7 @@ public class ServerGui {
             }
             if (count > 1) {
                 int n = ram.length;
-                // RAM alani
+                // RAM area
                 int[] xs = new int[count + 2];
                 int[] ys = new int[count + 2];
                 for (int i = 0; i < count; i++) {
@@ -776,7 +793,7 @@ public class ServerGui {
                 for (int i = 1; i < count; i++) {
                     g.drawLine(xs[i - 1], ys[i - 1], xs[i], ys[i]);
                 }
-                // TPS cizgisi
+                // TPS line
                 g.setColor(YELLOW);
                 for (int i = 1; i < count; i++) {
                     int a = n - count + i - 1, b = a + 1;

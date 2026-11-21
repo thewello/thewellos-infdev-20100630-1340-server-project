@@ -8,6 +8,9 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InsnList;
+import org.objectweb.asm.tree.InsnNode;
+import org.objectweb.asm.tree.JumpInsnNode;
+import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
@@ -31,10 +34,10 @@ import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
 /**
- * Patches the inf-20100630-1340 client jar with TheWelloDev multiplayer support.
+ * Patches the inf-20100630-1340 client jar with multiplayer support.
  *
  * Usage:
- *   java -jar TheWelloDev-ClientPatcher.jar inf-20100630-1340.jar inf-20100630-1340-TheWelloDev.jar
+ *   java -jar TheWellosInfdevClientPatcher.jar inf-20100630-1340.jar inf-20100630-1340-mp.jar
  */
 public class ClientPatcher {
 
@@ -166,29 +169,440 @@ public class ClientPatcher {
         return t;
     }
 
+    private static MethodNode findMethod(ClassNode cn, String name, String desc) {
+        for (MethodNode m : cn.methods) {
+            if (m.name.equals(name) && m.desc.equals(desc)) {
+                return m;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Hooks for inf-20100227-1433. Every hook takes no game types (Object or primitives), because the mod cannot
+     * name the game classes in source (see TW227Client).
+     */
+    public static HookTransformer createTransformer227() {
+        return createTransformerInfdev("TW227Client", false, "net/minecraft/a/a/e");
+    }
+
+    /** Hooks for inf-20100313 (same as 20100227, but the world class is f and its chunks are the game's own). */
+    public static HookTransformer createTransformer313() {
+        return createTransformerInfdev("TW313Client", true, "net/minecraft/a/a/f");
+    }
+
+    /** Hooks for inf-20100316 (the hooks of 20100313; the world class is called e again). */
+    public static HookTransformer createTransformer316() {
+        HookTransformer t = createTransformerInfdev("TW316Client", true, "net/minecraft/a/a/e");
+        // World: every entity that is added (the mod passes the items that fall on to the other players)
+        t.custom("net/minecraft/a/a/e", new HookTransformer.Custom() {
+            public boolean apply(ClassNode cn) {
+                MethodNode m = findMethod(cn, "a", "(Lnet/minecraft/a/c/b;)V");
+                if (m == null) {
+                    return false;
+                }
+                InsnList il = new InsnList();
+                il.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "TW316Client", "onEntityAdd", "(Ljava/lang/Object;)V",
+                        false));
+                m.instructions.insert(il);
+                return true;
+            }
+        });
+        return t;
+    }
+
+    private static HookTransformer createTransformerInfdev(final String H, final boolean v313,
+                                                           final String worldInternal) {
+        HookTransformer t = new HookTransformer();
+        // Game tick: the main application's tick method calls the world tick
+        t.custom("net/minecraft/client/d", new HookTransformer.Custom() {
+            public boolean apply(ClassNode cn) {
+                MethodNode m = findMethod(cn, "f", "()V");
+                if (m == null) {
+                    return false;
+                }
+                InsnList il = new InsnList();
+                il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, H, "tick", "(Ljava/lang/Object;)V", false));
+                m.instructions.insert(il);
+                return true;
+            }
+        });
+        // Set-world method: remove the old online check at its start. It reads a URL (it can hang for a long time)
+        // and keeps the world only if the check passes. Now the world is stored and the check is skipped.
+        t.custom("net/minecraft/client/d", new HookTransformer.Custom() {
+            public boolean apply(ClassNode cn) {
+                MethodNode m = findMethod(cn, "a", "(L" + worldInternal + ";)V");
+                if (m == null) {
+                    return false;
+                }
+                // The check ends with "goto L; pop; L: aload_1; ifnull ..." (the catch handler's pop, then the label)
+                LabelNode target = null;
+                for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
+                    if (n.getOpcode() == Opcodes.POP && n.getNext() instanceof LabelNode) {
+                        AbstractInsnNode after = n.getNext().getNext();
+                        while (after != null && after.getOpcode() < 0) {
+                            after = after.getNext();
+                        }
+                        if (after instanceof VarInsnNode && after.getOpcode() == Opcodes.ALOAD
+                                && ((VarInsnNode) after).var == 1) {
+                            target = (LabelNode) n.getNext();
+                            break;
+                        }
+                    }
+                }
+                if (target == null) {
+                    return false;
+                }
+                InsnList il = new InsnList();
+                il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                il.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                il.add(new FieldInsnNode(Opcodes.PUTFIELD, "net/minecraft/client/d", "d", "L" + worldInternal + ";"));
+                il.add(new JumpInsnNode(Opcodes.GOTO, target));
+                m.instructions.insert(il);
+                return true;
+            }
+        });
+        // Title screen: add the multiplayer button (end of init) and handle its click (start of the button handler)
+        t.custom("net/minecraft/client/q", new HookTransformer.Custom() {
+            public boolean apply(ClassNode cn) {
+                MethodNode init = findMethod(cn, "b", "()V");
+                MethodNode click = findMethod(cn, "a", "(Lnet/minecraft/client/c/r;)V");
+                if (init == null || click == null) {
+                    return false;
+                }
+                java.util.List<AbstractInsnNode> rets = new java.util.ArrayList<AbstractInsnNode>();
+                for (AbstractInsnNode n = init.instructions.getFirst(); n != null; n = n.getNext()) {
+                    if (n.getOpcode() == Opcodes.RETURN) {
+                        rets.add(n);
+                    }
+                }
+                for (AbstractInsnNode r : rets) {
+                    InsnList il = new InsnList();
+                    il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, H, "titleInit", "(Ljava/lang/Object;)V", false));
+                    init.instructions.insertBefore(r, il);
+                }
+                InsnList il = new InsnList();
+                LabelNode cont = new LabelNode();
+                il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                il.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, H, "titleAction",
+                        "(Ljava/lang/Object;Ljava/lang/Object;)Z", false));
+                il.add(new JumpInsnNode(Opcodes.IFEQ, cont));
+                il.add(new InsnNode(Opcodes.RETURN));
+                il.add(cont);
+                click.instructions.insert(il);
+                return true;
+            }
+        });
+        // Render-chunk sorting: the two comparators return 1 for equal distances, which makes Java 7 and later throw
+        // "Comparison method violates its general contract" and crash the game. Equal distances now return 0.
+        HookTransformer.Custom fixCompare = new HookTransformer.Custom() {
+            public boolean apply(ClassNode cn) {
+                MethodNode m = findMethod(cn, "compare", "(Ljava/lang/Object;Ljava/lang/Object;)I");
+                if (m == null) {
+                    return false;
+                }
+                for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
+                    if (n.getOpcode() == Opcodes.FCMPG) {
+                        LabelNode notEqual = new LabelNode();
+                        InsnList il = new InsnList();
+                        il.add(new InsnNode(Opcodes.DUP));
+                        il.add(new JumpInsnNode(Opcodes.IFNE, notEqual));
+                        il.add(new InsnNode(Opcodes.POP));
+                        il.add(new InsnNode(Opcodes.ICONST_0));
+                        il.add(new InsnNode(Opcodes.IRETURN));
+                        il.add(notEqual);
+                        m.instructions.insert(n, il);
+                        return true;
+                    }
+                }
+                return false;
+            }
+        };
+        t.custom("net/minecraft/client/a/a", fixCompare);
+        t.custom("net/minecraft/client/a/j", fixCompare);
+        // Renderer: draw the other players at the end of the entity pass (the camera is set up there)
+        t.custom("net/minecraft/client/a/b", new HookTransformer.Custom() {
+            public boolean apply(ClassNode cn) {
+                MethodNode m = findMethod(cn, "a", "(Lnet/minecraft/a/d/a;Lnet/minecraft/client/a/b/c;F)V");
+                if (m == null) {
+                    return false;
+                }
+                java.util.List<AbstractInsnNode> rets = new java.util.ArrayList<AbstractInsnNode>();
+                for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
+                    if (n.getOpcode() == Opcodes.RETURN) {
+                        rets.add(n);
+                    }
+                }
+                for (AbstractInsnNode r : rets) {
+                    InsnList il = new InsnList();
+                    il.add(new VarInsnNode(Opcodes.FLOAD, 3));
+                    il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, H, "renderPlayers", "(F)V", false));
+                    m.instructions.insertBefore(r, il);
+                }
+                // the camera matrices of the frame, for the name tags (taken before the pass changes them)
+                InsnList head = new InsnList();
+                head.add(new MethodInsnNode(Opcodes.INVOKESTATIC, H, "captureMatrices", "()V", false));
+                m.instructions.insert(head);
+                return !rets.isEmpty();
+            }
+        });
+        // Pause menu: no saving or loading online, and a disconnect button (end of init, start of the click handler)
+        t.custom("net/minecraft/client/c/b", new HookTransformer.Custom() {
+            public boolean apply(ClassNode cn) {
+                MethodNode init = findMethod(cn, "b", "()V");
+                MethodNode click = findMethod(cn, "a", "(Lnet/minecraft/client/c/r;)V");
+                if (init == null || click == null) {
+                    return false;
+                }
+                java.util.List<AbstractInsnNode> rets = new java.util.ArrayList<AbstractInsnNode>();
+                for (AbstractInsnNode n = init.instructions.getFirst(); n != null; n = n.getNext()) {
+                    if (n.getOpcode() == Opcodes.RETURN) {
+                        rets.add(n);
+                    }
+                }
+                for (AbstractInsnNode r : rets) {
+                    InsnList il = new InsnList();
+                    il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, H, "pauseInit", "(Ljava/lang/Object;)V", false));
+                    init.instructions.insertBefore(r, il);
+                }
+                InsnList il = new InsnList();
+                LabelNode cont = new LabelNode();
+                il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                il.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, H, "pauseAction",
+                        "(Ljava/lang/Object;Ljava/lang/Object;)Z", false));
+                il.add(new JumpInsnNode(Opcodes.IFEQ, cont));
+                il.add(new InsnNode(Opcodes.RETURN));
+                il.add(cont);
+                click.instructions.insert(il);
+                return true;
+            }
+        });
+        // Death screen: Respawn instead of generating a new level
+        t.custom("net/minecraft/client/c/d", new HookTransformer.Custom() {
+            public boolean apply(ClassNode cn) {
+                MethodNode init = findMethod(cn, "b", "()V");
+                MethodNode click = findMethod(cn, "a", "(Lnet/minecraft/client/c/r;)V");
+                if (init == null || click == null) {
+                    return false;
+                }
+                java.util.List<AbstractInsnNode> rets = new java.util.ArrayList<AbstractInsnNode>();
+                for (AbstractInsnNode n = init.instructions.getFirst(); n != null; n = n.getNext()) {
+                    if (n.getOpcode() == Opcodes.RETURN) {
+                        rets.add(n);
+                    }
+                }
+                for (AbstractInsnNode r : rets) {
+                    InsnList il = new InsnList();
+                    il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                    il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, H, "deathInit", "(Ljava/lang/Object;)V", false));
+                    init.instructions.insertBefore(r, il);
+                }
+                InsnList il = new InsnList();
+                LabelNode cont = new LabelNode();
+                il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                il.add(new VarInsnNode(Opcodes.ALOAD, 1));
+                il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, H, "deathAction",
+                        "(Ljava/lang/Object;Ljava/lang/Object;)Z", false));
+                il.add(new JumpInsnNode(Opcodes.IFEQ, cont));
+                il.add(new InsnNode(Opcodes.RETURN));
+                il.add(cont);
+                click.instructions.insert(il);
+                return true;
+            }
+        });
+        // In-game HUD: draw the chat lines right after the "Minecraft Infdev" label, where the HUD still has its 2D
+        // drawing state (at the end of the method the state is already back to 3D and text is not visible)
+        t.custom("net/minecraft/client/c/l", new HookTransformer.Custom() {
+            public boolean apply(ClassNode cn) {
+                MethodNode m = findMethod(cn, "a", "(F)V");
+                if (m == null) {
+                    return false;
+                }
+                for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
+                    if (n instanceof org.objectweb.asm.tree.LdcInsnNode
+                            && "Minecraft Infdev".equals(((org.objectweb.asm.tree.LdcInsnNode) n).cst)) {
+                        // the label draw is followed by its call; the code after it is where both branches meet
+                        AbstractInsnNode call = n.getNext();
+                        while (call != null && call.getOpcode() != Opcodes.INVOKEVIRTUAL) {
+                            call = call.getNext();
+                        }
+                        if (call == null || !(call.getNext() instanceof LabelNode)) {
+                            return false;
+                        }
+                        InsnList il = new InsnList();
+                        il.add(new VarInsnNode(Opcodes.ALOAD, 0));
+                        il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, H, "drawHud", "(Ljava/lang/Object;)V", false));
+                        m.instructions.insert(call.getNext(), il);
+                        return true;
+                    }
+                }
+                return false;
+            }
+        });
+        // World: before every return of set-block (x, y, z, id): report the result and the arguments
+        t.custom(worldInternal, new HookTransformer.Custom() {
+            public boolean apply(ClassNode cn) {
+                MethodNode m = v313 ? findMethod(cn, "b", "(IIII)Z") : findMethod(cn, "a", "(IIII)Z");
+                if (m == null) {
+                    return false;
+                }
+                java.util.List<AbstractInsnNode> rets = new java.util.ArrayList<AbstractInsnNode>();
+                for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
+                    if (n.getOpcode() == Opcodes.IRETURN) {
+                        rets.add(n);
+                    }
+                }
+                // The method reuses its parameter slots, so the arguments are copied into new local variables first
+                int base = Math.max(m.maxLocals, 5);
+                InsnList head = new InsnList();
+                for (int i = 0; i < 4; i++) {
+                    head.add(new VarInsnNode(Opcodes.ILOAD, 1 + i));
+                    head.add(new VarInsnNode(Opcodes.ISTORE, base + i));
+                }
+                m.instructions.insert(head);
+                m.maxLocals = base + 4;
+                for (AbstractInsnNode r : rets) {
+                    InsnList il = new InsnList();
+                    il.add(new InsnNode(Opcodes.DUP));
+                    for (int i = 0; i < 4; i++) {
+                        il.add(new VarInsnNode(Opcodes.ILOAD, base + i));
+                    }
+                    il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, H, "onBlockSet", "(ZIIII)V", false));
+                    m.instructions.insertBefore(r, il);
+                }
+                return !rets.isEmpty();
+            }
+        });
+        if (v313) {
+            // World: block metadata is set after the block (torch direction, cloth colour): report it as well
+            t.custom(worldInternal, new HookTransformer.Custom() {
+                public boolean apply(ClassNode cn) {
+                    MethodNode m = findMethod(cn, "a", "(IIII)V");
+                    if (m == null) {
+                        return false;
+                    }
+                    java.util.List<AbstractInsnNode> rets = new java.util.ArrayList<AbstractInsnNode>();
+                    for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
+                        if (n.getOpcode() == Opcodes.RETURN) {
+                            rets.add(n);
+                        }
+                    }
+                    int base = Math.max(m.maxLocals, 5);
+                    InsnList head = new InsnList();
+                    for (int i = 0; i < 4; i++) {
+                        head.add(new VarInsnNode(Opcodes.ILOAD, 1 + i));
+                        head.add(new VarInsnNode(Opcodes.ISTORE, base + i));
+                    }
+                    m.instructions.insert(head);
+                    m.maxLocals = base + 4;
+                    for (AbstractInsnNode r : rets) {
+                        InsnList il = new InsnList();
+                        for (int i = 0; i < 4; i++) {
+                            il.add(new VarInsnNode(Opcodes.ILOAD, base + i));
+                        }
+                        il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, H, "onMetaSet", "(IIII)V", false));
+                        m.instructions.insertBefore(r, il);
+                    }
+                    return !rets.isEmpty();
+                }
+            });
+            return t;
+        }
+        // Chunk store: the terrain generator returns the hook's array when it is not null (no local terrain)
+        t.custom("net/minecraft/a/a/f", new HookTransformer.Custom() {
+            public boolean apply(ClassNode cn) {
+                MethodNode m = findMethod(cn, "a", "(Lnet/minecraft/a/a/g;)[B");
+                if (m == null) {
+                    return false;
+                }
+                InsnList il = new InsnList();
+                LabelNode cont = new LabelNode();
+                il.add(new MethodInsnNode(Opcodes.INVOKESTATIC, H, "blank", "()[B", false));
+                il.add(new InsnNode(Opcodes.DUP));
+                il.add(new JumpInsnNode(Opcodes.IFNULL, cont));
+                il.add(new InsnNode(Opcodes.ARETURN));
+                il.add(cont);
+                il.add(new InsnNode(Opcodes.POP));
+                m.instructions.insert(il);
+                return true;
+            }
+        });
+        return t;
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length < 2) {
-            System.out.println("TheWelloDev Client Patcher");
-            System.out.println("Usage: java -jar TheWelloDev-ClientPatcher.jar <inf-20100630-1340.jar> <output.jar>");
+            System.out.println("TheWello's Infdev Client Patcher");
+            System.out.println("Usage: java -jar TheWellosInfdevClientPatcher.jar <inf-...jar> <output.jar | folder>");
+            System.out.println("With a folder the output is named <build>-mp.jar (for example inf-20100316-mp.jar).");
+            System.out.println("Builds: inf-20100630-1340, inf-20100227-1433, inf-20100313, inf-20100316 (detected from the jar)");
             System.exit(1);
         }
         boolean publicizeOnly = args.length > 2 && args[2].equals("--publicize-only");
         File in = new File(args[0]);
         File out = new File(args[1]);
+        if (out.isDirectory()) {
+            out = new File(out, detect(in).id + "-mp.jar");
+        }
         patch(in, out, publicizeOnly);
         System.out.println("Done: " + out.getAbsolutePath());
     }
 
-    public static void patch(File in, File out, boolean publicizeOnly) throws IOException {
-        HookTransformer t = publicizeOnly ? new HookTransformer() : createTransformer();
+    /** Recognises the Infdev build of a game jar from the classes in it. */
+    public static net.thewellodev.protocol.GameVersion detect(File in) throws IOException {
         JarFile jar = new JarFile(in);
-        if (jar.getEntry("kb.class") == null || jar.getEntry("fe.class") == null || jar.getEntry("aw.class") == null) {
-            throw new IOException("This file does not look like an inf-20100630-1340 client jar: " + in);
+        try {
+            return detect(jar, in);
+        } finally {
+            jar.close();
         }
+    }
+
+    private static net.thewellodev.protocol.GameVersion detect(JarFile jar, File in) throws IOException {
+        net.thewellodev.protocol.GameVersion version;
+        if (jar.getEntry("kb.class") != null && jar.getEntry("fe.class") != null && jar.getEntry("aw.class") != null) {
+            version = net.thewellodev.protocol.GameVersion.INF_20100630_1340;
+        } else if (jar.getEntry("net/minecraft/a/a/e/e.class") != null && jar.getEntry("net/minecraft/a/a/f.class") != null
+                && jar.getEntry("net/minecraft/client/d.class") != null) {
+            version = net.thewellodev.protocol.GameVersion.INF_20100313;
+        } else if (jar.getEntry("net/minecraft/a/a/e/e.class") != null && jar.getEntry("net/minecraft/client/d.class") != null) {
+            version = net.thewellodev.protocol.GameVersion.INF_20100316;
+        } else if (jar.getEntry("net/minecraft/a/a/e.class") != null && jar.getEntry("net/minecraft/client/d.class") != null) {
+            version = net.thewellodev.protocol.GameVersion.INF_20100227_1433;
+        } else {
+            throw new IOException("This file does not look like an inf-20100630-1340, inf-20100227-1433, inf-20100313 or inf-20100316 client jar: " + in);
+        }
+        return version;
+    }
+
+    public static void patch(File in, File out, boolean publicizeOnly) throws IOException {
+        JarFile jar = new JarFile(in);
+        net.thewellodev.protocol.GameVersion version;
+        try {
+            version = detect(jar, in);
+        } catch (IOException e) {
+            jar.close();
+            throw e;
+        }
+        boolean is227 = version == net.thewellodev.protocol.GameVersion.INF_20100227_1433;
+        boolean is313 = version == net.thewellodev.protocol.GameVersion.INF_20100313;
+        // Mod classes of each build are in their own folder inside the patcher
+        boolean is316 = version == net.thewellodev.protocol.GameVersion.INF_20100316;
+        String modDir = is316 ? "/mod316/" : is313 ? "/mod313/" : is227 ? "/mod227/" : "/mod/";
+        HookTransformer t = publicizeOnly ? new HookTransformer()
+                : (is316 ? createTransformer316() : is313 ? createTransformer313() : is227 ? createTransformer227() : createTransformer());
         Manifest mf = new Manifest();
         mf.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
         if (!publicizeOnly) {
             mf.getMainAttributes().putValue("TheWelloDev-Client", "1.0");
+            // Lets the server recognise this jar as a build (see GameVersion)
+            mf.getMainAttributes().putValue(net.thewellodev.protocol.GameVersion.MANIFEST_KEY, version.id);
         }
         JarOutputStream jos = new JarOutputStream(new FileOutputStream(out), mf);
         Set<String> written = new HashSet<String>();
@@ -213,10 +627,11 @@ public class ClientPatcher {
                 if (!miss.isEmpty()) {
                     throw new IOException("Some hooks could not be applied (wrong version?): " + miss);
                 }
-                // Mod siniflarini ekle
-                InputStream idx = ClientPatcher.class.getResourceAsStream("/mod/index.txt");
+                // add the mod classes
+                InputStream idx = ClientPatcher.class.getResourceAsStream(modDir + "index.txt");
                 if (idx == null) {
-                    throw new IOException("mod/index.txt not found in the patcher");
+                    throw new IOException(modDir.substring(1) + "index.txt not found: this patcher was built without support for "
+                            + version.id);
                 }
                 BufferedReader br = new BufferedReader(new InputStreamReader(idx, "UTF-8"));
                 String line;
@@ -225,7 +640,7 @@ public class ClientPatcher {
                     if (line.length() == 0) {
                         continue;
                     }
-                    InputStream res = ClientPatcher.class.getResourceAsStream("/mod/" + line);
+                    InputStream res = ClientPatcher.class.getResourceAsStream(modDir + line);
                     if (res == null) {
                         throw new IOException("Missing mod file: " + line);
                     }

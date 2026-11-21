@@ -95,7 +95,7 @@ public class TWTiles {
         heldTe = te;
         heldScreen = m.p;
         if (heldScreen == null) {
-            // GUI acilmadiysa kilidi hemen birak
+            // if the GUI did not open, release the lock at once
             TWClient.conn.sendXYZ(Protocol.LOCK_RELEASE, x, y, z);
             held = -1;
             heldTe = null;
@@ -107,7 +107,7 @@ public class TWTiles {
         aw m = TWClient.mc;
         TWConnection c = TWClient.conn;
         if (pendingOpen != null && System.currentTimeMillis() - pendingAt > 3000) {
-            pendingOpen = null; // cevap gelmedi
+            pendingOpen = null; // no answer came
         }
         if (held < 0 || m == null || c == null) {
             return;

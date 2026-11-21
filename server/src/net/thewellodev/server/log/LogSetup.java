@@ -77,7 +77,7 @@ public final class LogSetup {
     public static Logger setup(File dir) {
         originalOut = System.out;
         final LineFormatter formatter = new LineFormatter();
-        logger = Logger.getLogger("TheWelloDev");
+        logger = Logger.getLogger("InfdevServer");
         logger.setUseParentHandlers(false);
         logger.setLevel(Level.ALL);
 
@@ -159,7 +159,7 @@ public final class LogSetup {
         return logger;
     }
 
-    /** System.out/err'e yazilanlari satir satir log'a aktarir. */
+    /** Passes what is written to System.out/err on to the log, line by line. */
     private static final class LoggerStream extends OutputStream {
         private final Logger log;
         private final Level level;

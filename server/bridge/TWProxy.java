@@ -5,7 +5,7 @@
 public class TWProxy extends gi {
 
     public final String name;
-    /** Hayatta ve survival: mob'lar saldirabilir */
+    /** Alive and in survival mode: mobs can attack */
     public boolean targetable;
     private long lastHurt = -100;
     /** The player's movement input while in a minecart. */

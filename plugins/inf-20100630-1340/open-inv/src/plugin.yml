@@ -1,0 +1,15 @@
+name: TheWelloOpenInv
+version: 1.0
+main: net.thewellodev.openinv.TheWelloOpenInv
+author: TheWello
+description: View and edit the inventory of online players, and search inventories (operators only).
+commands:
+  openinv:
+    description: Shows or edits a player's inventory
+    usage: /<command> <player> | /<command> <player> set <slot> <item> [amount] [data] | /<command> <player> clear <slot>
+    aliases: [invsee, oi]
+    permission: thewelloopeninv.admin
+  searchinv:
+    description: Searches online players' inventories for an item
+    usage: /<command> <item> [minimum amount]
+    permission: thewelloopeninv.admin

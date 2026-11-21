@@ -1,0 +1,11 @@
+name: TheWelloNoCheat
+version: 1.0
+main: net.thewellodev.nocheat.TheWelloNoCheat
+author: TheWello
+description: Optional anti-cheat - movement, flight, reach, attack rate, health, inventory and chat checks.
+commands:
+  nocheat:
+    description: Anti-cheat status and violation list
+    usage: /<command> status | reset <player>
+    aliases: [anticheat]
+    permission: thewellonocheat.admin

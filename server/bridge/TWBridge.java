@@ -90,7 +90,7 @@ public class TWBridge implements GameBridge {
         try {
             spawnMobs();
         } catch (RuntimeException e) {
-            reportError("mob dogmasi", e);
+            reportError("mob spawning", e);
         }
         // Entities and tile entities (mobs, arrows, falling sand/gravel...)
         try {
@@ -213,7 +213,7 @@ public class TWBridge implements GameBridge {
                 continue; // air and leaves: do not climb into trees, stop at the ground
             }
             if (id == 8 || id == 9 || id == 10 || id == 11 || id == 51) {
-                return -1; // su, lav, ates
+                return -1; // water, lava, fire
             }
             tried++;
             if (w.a(x, y + 1, z) == 0 && (y + 2 > 127 || w.a(x, y + 2, z) == 0)) {
@@ -269,7 +269,7 @@ public class TWBridge implements GameBridge {
         Class<?>[] cls = {gw.class, fo.class, fy.class, ci.class, dn.class, ib.class, eo.class, ac.class, db.class, ij.class, cy.class, jp.class};
         for (int i = 0; i < cls.length; i++) {
             if (!cls[i].getName().equals(Protocol.MOB_CLASSES[i])) {
-                throw new IllegalStateException("Mob sinif tablosu uyusmuyor: " + Protocol.MOB_CLASSES[i]);
+                throw new IllegalStateException("The mob class table does not match: " + Protocol.MOB_CLASSES[i]);
             }
             typeOf.put(cls[i], i);
         }
@@ -300,7 +300,7 @@ public class TWBridge implements GameBridge {
             proxyByName.put(name, p);
         }
         p.targetable = targetable;
-        p.b(x, y + p.z, z); // k = goz yuksekligi; z = 1.62 (yOffset)
+        p.b(x, y + p.z, z); // k = eye height; z = 1.62 (yOffset)
         p.p = yaw;
         p.q = pitch;
         if (!TWServerHook.proxies.contains(p) && w.B.a(hq.b(x) >> 4, hq.b(z) >> 4)) {
@@ -499,7 +499,7 @@ public class TWBridge implements GameBridge {
             return false;
         }
         if (v.d != null && v.d != p && !v.d.y && TWServerHook.proxies.contains(v.d)) {
-            return false; // baskasi binmis
+            return false; // somebody else is riding it
         }
         if (p.e != v) {
             p.h(v);
@@ -765,7 +765,7 @@ public class TWBridge implements GameBridge {
                 st = ((ij) e).a & 255;
             }
             if (e instanceof ib && ((ib) e).a) {
-                st |= Protocol.STATE_SHEARED; // domuzda: eyerli
+                st |= Protocol.STATE_SHEARED; // pig: saddled
             }
             if (e instanceof jp) {
                 st = 0;

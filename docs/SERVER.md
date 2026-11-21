@@ -2,15 +2,16 @@
 
 ## Starting
 
-Double-click `start-server.bat` (Windows) or run:
+Run `start-server.bat` (Windows), `start-server.sh`, or:
 
 ```sh
-java -Xmx1G -jar TheWelloDev-Server.jar          # with the control panel
-java -Xmx1G -jar TheWelloDev-Server.jar nogui    # console only
+java -Xmx1G -jar TheWellosInfdevServer.jar          # with the control panel
+java -Xmx1G -jar TheWellosInfdevServer.jar nogui    # console only
 ```
 
-The server needs the patched game jar `inf-20100630-1340-mp.jar` (or the original `inf-20100630-1340.jar`) in its folder.
-It loads the game from there.
+The server needs the game jar of the build it runs in its folder: the original jar (for example `inf-20100316.jar`)
+or the patched client jar of the same build (`inf-20100316-mp.jar`). It loads the game from there. A jar is recognised
+by its contents, not by its name; with several jars in the folder the one that belongs to `game-version` is used.
 
 Java 8 is required. Use `-Xmx2G` for more than about 20 players.
 
@@ -20,7 +21,7 @@ Java 8 is required. Use `-Xmx2G` for more than about 20 players.
 |---|---|---|
 | `server-port` | 25565 | TCP port |
 | `server-ip` | (empty) | Bind to a specific address |
-| `motd` | `&eA TheWelloDev server` | Message shown in the server list (`&` colour codes) |
+| `motd` | `&eA TheWello's Infdev server` | Message shown in the server list (`&` colour codes) |
 | `max-players` | 20 | Player limit |
 | `upnp` | true | Open the port on the router automatically |
 | `online-mode` | true | Verify accounts with Mojang. Set to false only for offline testing |
@@ -36,7 +37,23 @@ Java 8 is required. Use `-Xmx2G` for more than about 20 players.
 | `mob-cap-monsters` | 100 | Monsters per player (within 128 blocks) |
 | `mob-cap-animals` | 20 | Animals per player (within 128 blocks) |
 | `autosave-minutes` | 5 | Interval for saving the world |
-| `game-jar` | auto | Game jar to load; `auto` picks `inf-20100630-1340*.jar` in the server folder |
+| `game-version` | inf-20100630-1340 | The game build this server runs: `inf-20100630-1340`, `inf-20100227-1433`, `inf-20100313` or `inf-20100316`. Only that build's content is used, and only clients of that build can join. See [MULTIVERSION.md](MULTIVERSION.md) |
+| `game-jar` | auto | Game jar to load. `auto` picks the first `inf-*.jar` in the server folder that belongs to `game-version`. An explicit name must belong to it too |
+
+Worlds are stored in `worlds/<game-version>/<level-name>/`, so two builds never share a world folder. A world
+from an early release of this project (folder `<level-name>` next to `server.properties`) is moved there once on the
+first start with `inf-20100630-1340`.
+
+### Moving a world to a newer build
+
+Set `game-version` to the newer build and start the server. If `level-name` has no world for that build yet but has one
+for an older build (`inf-20100227-1433` to `inf-20100313` to `inf-20100316`), the server takes it over: it creates the new
+world at once and converts each chunk the first time a player needs it. The old world is only read. `/convertworld`
+converts the chunks nobody has visited yet. Do not delete the old world before the console says it is complete.
+See [MULTIVERSION.md](MULTIVERSION.md).
+
+Builds `inf-20100227-1433`, `inf-20100313` and `inf-20100316` have no mobs or animals: `difficulty`, `spawn-monsters`,
+`spawn-animals` and the mob caps have no effect there, and the commands that need them are not registered.
 
 ## Operators and permissions
 
@@ -50,14 +67,16 @@ Type `/help` in the console or in chat. `/help <word>` searches commands; `/help
 
 ## Plugins
 
-Put plugin jars in the `plugins/` folder and restart (or use `/reload`). See [PLUGIN-API.md](PLUGIN-API.md).
+Put plugin jars in the `plugins/` folder and restart (or use `/reload`). Each build has its own API and plugins, and a
+plugin only loads on the build named in its `plugin.yml` (`api:` line): see [plugin-api/](plugin-api/README.md).
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `world/` | World data and player positions |
+| `worlds/<build>/<level>/` | World data, player positions and (builds 227, 313, 316) saved inventories |
 | `ops.txt`, `white-list.txt`, `banned-players.txt` | Access lists |
 | `permissions.txt` | Extra permissions |
 | `logs/latest.log` | Log of the current run |
+| `logs/freeze-*.txt` | Written when one server tick takes more than 8 seconds (where the server is stuck) |
 | `plugins/` | Plugin jars and their configuration folders |

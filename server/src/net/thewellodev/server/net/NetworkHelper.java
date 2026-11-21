@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
  * So that friends can connect over the internet:
  * - finds the LAN IP and lists VPN addresses (Radmin, Hamachi, ZeroTier)
  * - opens the port on the router automatically with UPnP (searches every real network adapter; skips VPN adapters)
- * - Dis IP'yi ogrenir, CGNAT'i tespit eder
+ * - Finds the public IP address and detects CGNAT
  */
 public final class NetworkHelper {
 
@@ -47,7 +47,7 @@ public final class NetworkHelper {
         this.port = port;
     }
 
-    /** Arka planda calistirilir. */
+    /** Runs in the background. */
     public void run(boolean useUpnp) {
         List<InetAddress> locals = physicalIpv4();
         lanIp = findLanIp(locals);
@@ -113,7 +113,7 @@ public final class NetworkHelper {
         }
     }
 
-    // ------------------------------------------------------------------ ag kartlari
+    // ------------------------------------------------------------------ network adapters
 
     private static boolean isVpnName(String name) {
         String n = name.toLowerCase(java.util.Locale.ENGLISH);
@@ -359,7 +359,7 @@ public final class NetworkHelper {
                     soap("AddPortMapping", "<NewRemoteHost></NewRemoteHost><NewExternalPort>" + port
                             + "</NewExternalPort><NewProtocol>TCP</NewProtocol><NewInternalPort>" + port
                             + "</NewInternalPort><NewInternalClient>" + internalIp
-                            + "</NewInternalClient><NewEnabled>1</NewEnabled><NewPortMappingDescription>TheWelloDev Minecraft"
+                            + "</NewInternalClient><NewEnabled>1</NewEnabled><NewPortMappingDescription>TheWello's Infdev Server"
                             + "</NewPortMappingDescription><NewLeaseDuration>" + lease + "</NewLeaseDuration>");
                     leaseSeconds = lease;
                     return true;

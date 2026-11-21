@@ -9,19 +9,20 @@ import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
 /**
- * TheWelloDev ag protokolu (client <-> server).
+ * The network protocol (client <-> server).
  *
  * Each packet is [byte id][body]. Body fields are written with DataOutputStream.
  * Strings are written with writeUTF.
  */
 public final class Protocol {
 
+    /** Protocol number of inf-20100630-1340 clients. Each build has its own number (see GameVersion). */
     public static final int VERSION = 11;
     public static final int DEFAULT_PORT = 25565;
     /** Magic number the client sends at the start of a connection ("TWLD"). */
     public static final int MAGIC = 0x54574C44;
 
-    // ---- Paket kimlikleri ----
+    // ---- Packet ids ----
     /** C->S: int magic, int version, String username */
     public static final int HANDSHAKE = 0x01;
     /** S->C: int entityId, long seed, double x,y,z, float yaw,pitch, long time, boolean mobs, String motd */
@@ -58,11 +59,11 @@ public final class Protocol {
     public static final int SPAWN_ITEM = 0x11;
     /** C->S: int netId -- request to pick up an item */
     public static final int PICKUP_ITEM = 0x12;
-    /** S->C: int netId, int collectorEntityId (-1 = kayboldu) */
+    /** S->C: int netId, int collectorEntityId (-1 = vanished) */
     public static final int REMOVE_ITEM = 0x13;
     /** C->S: int targetEntityId, byte damage -- attack another player */
     public static final int ATTACK = 0x14;
-    /** S->C: int attackerEntityId, byte damage -- sana vuruldu */
+    /** S->C: int attackerEntityId, byte damage -- you were hit */
     public static final int DAMAGE = 0x15;
     /** S->C: int entityId -- player was hurt (red flash) */
     public static final int HURT_ANIMATION = 0x16;
@@ -84,7 +85,7 @@ public final class Protocol {
     public static final int AUTH_RESPONSE = 0x1E;
     /**
      * C->S: int x, short y, int z, byte stage (-1 = released, 0-9) -- block-breaking progress
-     * S->C: int entityId, int x, short y, int z, byte asama
+     * S->C: int entityId, int x, short y, int z, byte stage
      */
     public static final int DIG_PROGRESS = 0x1F;
     /** S->C: int netId, byte type, int x32, int y32, int z32, byte yaw, byte pitch, byte state -- mob or arrow spawned */
@@ -95,7 +96,7 @@ public final class Protocol {
     public static final int REMOVE_MOB = 0x22;
     /** Both directions: int x, short y, int z, short length, byte[] NBT -- chest/furnace/sign contents */
     public static final int TILE_DATA = 0x24;
-    /** C->S: int x, short y, int z, byte yon, byte motif -- resim yerlestirildi */
+    /** C->S: int x, short y, int z, byte direction, byte motif -- a painting was placed */
     public static final int PLACE_PAINTING = 0x25;
     /** S->C: String name, int x32, int y32, int z32, float volume, float pitch -- world sound (explosion, mob, arrow...) */
     public static final int SOUND = 0x26;
@@ -103,13 +104,13 @@ public final class Protocol {
     public static final int PARTICLE = 0x27;
     /** C->S: (empty) -- bow shot (the arrow is created on the server) */
     public static final int FIRE_ARROW = 0x28;
-    /** C->S: int x, short y, int z -- maden arabasi raya konuldu */
+    /** C->S: int x, short y, int z -- a minecart was placed on a rail */
     public static final int PLACE_CART = 0x29;
-    /** C->S: int netId (-1 = indi) -- maden arabasina bindi/indi */
+    /** C->S: int netId (-1 = got off) -- got on or off a minecart */
     public static final int RIDE = 0x2A;
     /** C->S: float mx, float mz -- movement input of a rider (pushes the minecart) */
     public static final int RIDE_INPUT = 0x2B;
-    /** C->S: int netId -- domuza eyer takildi */
+    /** C->S: int netId -- a saddle was put on a pig */
     public static final int SADDLE = 0x2C;
     /** S->C: int playerEntityId, int vehicleNetId (-1 = dismounted) -- another player mounted a vehicle/pig */
     public static final int MOUNT = 0x2D;
@@ -119,17 +120,37 @@ public final class Protocol {
     public static final int SET_SLOT = 0x32;
     /** C->S: int x, short y, int z -- request a lock to open a chest/furnace (one player at a time) */
     public static final int LOCK_REQUEST = 0x2F;
-    /** S->C: int x, short y, int z, boolean verildi */
+    /** S->C: int x, short y, int z, boolean given */
     public static final int LOCK_RESULT = 0x30;
     /** C->S: int x, short y, int z -- chest/furnace closed, release the lock */
     public static final int LOCK_RELEASE = 0x31;
+    /**
+     * Server to client (builds 227 and 313, whose stacks hold more than 255): the inventory the server saved for the
+     * player, sent once after the login. Layout: ubyte n; n times (short id (-1: empty), int count, short damage).
+     * n = 0 means nothing is saved (the client keeps its own and starts reporting).
+     */
+    public static final int INVENTORY_SYNC = 0x33;
+    /** Client to server (same layout as INVENTORY_SYNC): the inventory changed; the server saves it. */
+    public static final int INVENTORY_REPORT = 0x34;
+    /**
+     * Build 316, both directions: an item that appeared in a player's own game (a dropped block, a thrown item).
+     * Client to server: i1 = the client's own number, then item id, count, damage (short, short, short), position
+     * and motion (6 doubles). The server gives it a number (player entity id << 20 | own number) and sends it to the
+     * other players, who show it in their own game.
+     */
+    public static final int DROP_SPAWN = 0x35;
+    /**
+     * The item entity is gone (picked up, burnt, too old). Client to server: int number, byte own (1: the number is the
+     * client's own number). Server to client: int number. The other players remove their copy.
+     */
+    public static final int DROP_REMOVE = 0x36;
     /** S->C: byte difficulty (0 peaceful, 1 easy, 2 normal, 3 hard) */
     public static final int DIFFICULTY = 0x23;
 
     /** Synchronized entity classes (obfuscated game names); the index is the mob type. */
     public static final String[] MOB_CLASSES = {"gw", "fo", "fy", "ci", "dn", "ib", "eo", "ac", "db", "ij", "cy", "jp"};
     /** English names (death messages, commands). */
-    public static final String[] MOB_NAMES = {"Zombi", "Iskelet", "Creeper", "Orumcek", "Koyun", "Domuz", "Ok", "Dev", "TNT", "Kum", "Resim", "Maden arabasi"};
+    public static final String[] MOB_NAMES = {"Zombie", "Skeleton", "Creeper", "Spider", "Sheep", "Pig", "Arrow", "Giant", "TNT", "Sand", "Painting", "Minecart"};
     /** Mob network ids start at this value so they do not clash with player ids. */
     public static final int MOB_ID_BASE = 1000000;
     /** State bits: 1 = burning, 2 = sheared sheep, 4.. = creeper fuse (value << 2) */
@@ -155,7 +176,7 @@ public final class Protocol {
     /**
      * Minecraft Java "Handshake" packet (length + packet 0 + protocol + address + port + next state = login).
      * Tunnel services read this packet to route connections.
-     * The TheWelloDev server recognizes this packet and skips it.
+     * The server recognizes this packet and skips it.
      */
     public static byte[] vanillaHandshake(String host, int port, String username) {
         byte[] hs = vanillaHandshake(host, port);
@@ -213,16 +234,16 @@ public final class Protocol {
     }
 
     /**
-     * If the first byte is not the TheWelloDev HANDSHAKE, a Minecraft Java handshake comes first;
-     * reads and skips it. @return the first byte of the TheWelloDev handshake
+     * If the first byte is not the HANDSHAKE, a Minecraft Java handshake comes first;
+     * reads and skips it. @return the first byte of the handshake
      */
     public static int skipVanillaHandshake(DataInputStream in, int first) throws IOException {
         // Skip at most 2 Minecraft packets (Handshake + Login Start); each is at least 3 bytes long,
-        // so a length byte never collides with the TheWelloDev HANDSHAKE (1).
+        // so a length byte never collides with the HANDSHAKE (1).
         int b0 = first;
         for (int frames = 0; b0 != HANDSHAKE; frames++) {
             if (frames >= 2) {
-                throw new IOException("Invalid first packet (not a TheWelloDev client?)");
+                throw new IOException("Invalid first packet (not a client of this project?)");
             }
             int len = b0 & 0x7F;
             int shift = 7;
@@ -236,7 +257,7 @@ public final class Protocol {
                 shift += 7;
             }
             if (len < 3 || len > 300) {
-                throw new IOException("Invalid first packet (not a TheWelloDev client?)");
+                throw new IOException("Invalid first packet (not a client of this project?)");
             }
             in.readFully(new byte[len]);
             b0 = in.readUnsignedByte();

@@ -25,7 +25,7 @@ import java.util.List;
  */
 public final class HookTransformer {
 
-    /** Hook turleri. */
+    /** Hook types. */
     public enum Mode {
         /** Calls a void hook at the start of the method. */
         HEAD_CALL,
@@ -114,7 +114,7 @@ public final class HookTransformer {
                                 && n.getNext() != null && n.getNext().getOpcode() == Opcodes.POP
                                 && n.getNext().getNext() instanceof JumpInsnNode
                                 && n.getNext().getNext().getOpcode() == Opcodes.GOTO) {
-                            return true; // yamali jar'da zaten uygulanmis
+                            return true; // already applied in a patched jar
                         }
                         if (n.getOpcode() == Opcodes.INVOKEINTERFACE && n.getNext() instanceof JumpInsnNode
                                 && n.getNext().getOpcode() == Opcodes.IFNE
@@ -145,7 +145,7 @@ public final class HookTransformer {
                     }
                     for (AbstractInsnNode n = m.instructions.getFirst(); n != null; n = n.getNext()) {
                         if (n.getOpcode() == Opcodes.INVOKESTATIC && ((MethodInsnNode) n).name.equals(helperName)) {
-                            return true; // zaten uygulanmis
+                            return true; // already applied
                         }
                         if (n.getOpcode() != Opcodes.FCMPG) {
                             continue;

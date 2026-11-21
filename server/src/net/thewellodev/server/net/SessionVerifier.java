@@ -29,14 +29,31 @@ public final class SessionVerifier {
     public static String hasJoined(String username, String serverId) throws IOException {
         String url = Protocol.sessionServer() + "/session/minecraft/hasJoined?username="
                 + URLEncoder.encode(username, "UTF-8") + "&serverId=" + URLEncoder.encode(serverId, "UTF-8");
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setConnectTimeout(10000);
-        c.setReadTimeout(10000);
-        c.setUseCaches(false);
-        c.setRequestProperty("User-Agent", "TheWelloDev");
-        int code = c.getResponseCode();
+        HttpURLConnection c = null;
+        int code = 0;
+        // "too many requests" (429) and server errors (5xx) are usually short: wait and try again a few times
+        long[] delays = {1500L, 3000L, 6000L};
+        for (int attempt = 0; ; attempt++) {
+            c = (HttpURLConnection) new URL(url).openConnection();
+            c.setConnectTimeout(10000);
+            c.setReadTimeout(10000);
+            c.setUseCaches(false);
+            c.setRequestProperty("User-Agent", "TheWellosInfdevServer");
+            code = c.getResponseCode();
+            if ((code != 429 && code < 500) || attempt >= delays.length) {
+                break;
+            }
+            try {
+                Thread.sleep(delays[attempt]);
+            } catch (InterruptedException e) {
+                throw new IOException("Interrupted");
+            }
+        }
         if (code == 204 || code == 404) {
             throw new IOException("Original account could not be verified");
+        }
+        if (code == 429) {
+            throw new IOException("Mojang's login service is busy (too many requests). Try again in a minute.");
         }
         if (code != 200) {
             throw new IOException("The Mojang session server did not answer (HTTP " + code + ")");

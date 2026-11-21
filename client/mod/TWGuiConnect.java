@@ -164,7 +164,7 @@ public class TWGuiConnect extends dc {
 
     public void a(int mx, int my, float partial) {
         h();
-        a(g, "Multiplayer - TheWelloDev", c / 2, d / 4 - 40, 0xFFFFFF);
+        a(g, "Multiplayer", c / 2, d / 4 - 40, 0xFFFFFF);
         String acc = accountName();
         if (acc == null) {
             a(g, "No account - start the game from the launcher", c / 2, d / 4 - 24, 0xFF5555);

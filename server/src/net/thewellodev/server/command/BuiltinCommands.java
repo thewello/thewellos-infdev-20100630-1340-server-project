@@ -55,7 +55,7 @@ public final class BuiltinCommands {
     static {
         category("General", "help list tell me ping version plugins seed status ip");
         category("Player", "spawn tp tphere give gamemode heal kill");
-        category("World", "time setspawn setblock killmobs clearitems difficulty spawnmob save-all");
+        category("World", "time setspawn setblock killmobs clearitems difficulty spawnmob save-all convertworld");
         category("Admin", "say kick ban pardon banlist op deop whitelist stop reload");
     }
 
@@ -113,7 +113,7 @@ public final class BuiltinCommands {
         s.sendMessage("&fUsage: &6" + usageOf(c));
         s.sendMessage("&fDescription: &f" + c.getDescription());
         if (c.getAliases() != null && !c.getAliases().isEmpty()) {
-            s.sendMessage("&fTakma adlar: &7" + join(c.getAliases().toArray(new String[0]), 0));
+            s.sendMessage("&fAliases: &7" + join(c.getAliases().toArray(new String[0]), 0));
         }
         Plugin owner = map(server).getOwner(c);
         if (owner != null) {
@@ -246,7 +246,7 @@ public final class BuiltinCommands {
                         return true;
                     }
                     who.teleport(target.getLocation());
-                    s.sendMessage("&e" + who.getName() + " -> " + target.getName() + " isinlandi.");
+                    s.sendMessage("&e" + who.getName() + " -> " + target.getName() + " teleported.");
                     return true;
                 }
                 if (a.length == 3 || a.length == 4) {
@@ -262,7 +262,7 @@ public final class BuiltinCommands {
                         double y = coord(a[o + 1], loc.getY());
                         double z = coord(a[o + 2], loc.getZ());
                         who.teleport(x, y, z);
-                        s.sendMessage(String.format("&e%s isinlandi: %.1f %.1f %.1f", who.getName(), x, y, z));
+                        s.sendMessage(String.format("&e%s teleported: %.1f %.1f %.1f", who.getName(), x, y, z));
                     } catch (NumberFormatException e) {
                         return false;
                     }
@@ -283,7 +283,7 @@ public final class BuiltinCommands {
                 }
                 String reason = a.length > 1 ? join(a, 1) : "Kicked from the server";
                 t.kickPlayer(reason);
-                server.broadcastMessage("&e" + t.getName() + " atildi: " + reason);
+                server.broadcastMessage("&e" + t.getName() + " was kicked: " + reason);
                 return true;
             }
         });
@@ -308,7 +308,7 @@ public final class BuiltinCommands {
                     return false;
                 }
                 server.setBanned(a[0], false);
-                s.sendMessage("&e" + a[0] + " yasagi kaldirildi.");
+                s.sendMessage("&e" + a[0] + " was unbanned.");
                 return true;
             }
         });
@@ -358,7 +358,7 @@ public final class BuiltinCommands {
                     s.sendMessage("&eWhite list " + (sub.equals("on") ? "enabled." : "disabled."));
                 } else if ((sub.equals("add") || sub.equals("remove")) && a.length > 1) {
                     server.setWhitelisted(a[1], sub.equals("add"));
-                    s.sendMessage("&e" + a[1] + (sub.equals("add") ? " eklendi." : " cikarildi."));
+                    s.sendMessage("&e" + a[1] + (sub.equals("add") ? " added." : " removed."));
                 } else if (sub.equals("list")) {
                     s.sendMessage("&eWhitelist (" + (server.isWhitelistEnabled() ? "on" : "off") + "): &f"
                             + server.getWhitelist());
@@ -370,21 +370,25 @@ public final class BuiltinCommands {
         });
         map.registerBuiltin(new Cmd("time", "/time <set|add> <value> | /time <day|night>", "Sets the world time") {
             boolean run(CommandSender s, String l, String[] a) {
+                long day0 = "inf-20100313".equals(server.getGameVersion()) ? 12000 : 24000;
                 if (a.length == 0) {
-                    s.sendMessage("&eZaman: " + server.getWorld().getTime() + " (gun ici: "
-                            + (server.getWorld().getTime() % 24000) + ")");
+                    s.sendMessage("&eTime: " + server.getWorld().getTime() + " (time of day: "
+                            + (server.getWorld().getTime() % day0) + ")");
                     return true;
                 }
                 long now = server.getWorld().getTime();
-                long base = now - (now % 24000);
+                // a day lasts 12000 ticks in inf-20100313 and 24000 ticks in the other builds
+                long day = "inf-20100313".equals(server.getGameVersion()) ? 12000 : 24000;
+                long dusk = day * 13 / 24;
+                long base = now - (now % day);
                 String sub = a[0].toLowerCase(java.util.Locale.ENGLISH);
                 try {
                     if (sub.equals("day")) {
-                        server.getWorld().setTime(base + 24000);
+                        server.getWorld().setTime(base + day);
                     } else if (sub.equals("night")) {
-                        server.getWorld().setTime(base + 13000 + (now % 24000 > 13000 ? 24000 : 0));
+                        server.getWorld().setTime(base + dusk + (now % day > dusk ? day : 0));
                     } else if (sub.equals("set") && a.length > 1) {
-                        long v = a[1].equalsIgnoreCase("day") ? 0 : a[1].equalsIgnoreCase("night") ? 13000
+                        long v = a[1].equalsIgnoreCase("day") ? 0 : a[1].equalsIgnoreCase("night") ? dusk
                                 : Long.parseLong(a[1]);
                         server.getWorld().setTime(base + v);
                     } else if (sub.equals("add") && a.length > 1) {
@@ -395,7 +399,14 @@ public final class BuiltinCommands {
                 } catch (NumberFormatException e) {
                     return false;
                 }
-                s.sendMessage("&eTime set: " + (server.getWorld().getTime() % 24000));
+                s.sendMessage("&eTime set: " + (server.getWorld().getTime() % day));
+                return true;
+            }
+        });
+        map.registerBuiltin(new Cmd("convertworld", "/convertworld",
+                "Converts the rest of a world that was taken over from an older build") {
+            boolean run(CommandSender s, String l, String[] a) {
+                server.startWorldConversion(s);
                 return true;
             }
         });
@@ -414,7 +425,7 @@ public final class BuiltinCommands {
                 return true;
             }
         });
-        map.registerBuiltin(new Cmd("plugins", "/plugins", "Yuklu plugin'leri listeler", "pl") {
+        map.registerBuiltin(new Cmd("plugins", "/plugins", "Lists the loaded plugins", "pl") {
             boolean run(CommandSender s, String l, String[] a) {
                 StringBuilder sb = new StringBuilder();
                 List<Plugin> ps = server.getPluginManager().getPlugins();
@@ -430,8 +441,8 @@ public final class BuiltinCommands {
         });
         map.registerBuiltin(new Cmd("version", "/version", "Shows the server version", "ver", "about") {
             boolean run(CommandSender s, String l, String[] a) {
-                s.sendMessage("&eTheWelloDev " + server.getVersion() + " &f(" + server.getGameVersion()
-                        + ") - Infdev server with plugin support (TheWelloDev API)");
+                s.sendMessage("&eTheWello's Infdev Server " + server.getVersion() + " &f(" + server.getGameVersion()
+                        + ") - Infdev server with plugin support (plugin API)");
                 return true;
             }
         });
@@ -462,7 +473,7 @@ public final class BuiltinCommands {
                 Location sp = server.getWorld().getSpawnLocation();
                 int y = server.getWorld().getHighestBlockYAt(sp.getBlockX(), sp.getBlockZ());
                 target.teleport(sp.getX(), y + 0.5, sp.getZ());
-                s.sendMessage("&e" + target.getName() + " spawn'a isinlandi.");
+                s.sendMessage("&e" + target.getName() + " teleported to the spawn.");
                 return true;
             }
         });
@@ -509,7 +520,7 @@ public final class BuiltinCommands {
                         server.getTps(), used, r.maxMemory() / 1048576L, server.getOnlinePlayers().size(),
                         server.getLoadedChunkEstimate(), server.getEntityCount()));
                 s.sendMessage("&eTick: &f" + String.format(java.util.Locale.ENGLISH, "%.1f", server.getMspt())
-                        + " ms (50 ms siniri)  &eCalisma suresi: &f" + server.getUptimeString());
+                        + " ms (50 ms limit)  &eUptime: &f" + server.getUptimeString());
                 return true;
             }
         });
@@ -578,6 +589,10 @@ public final class BuiltinCommands {
                     s.sendMessage("&cPlayer not found.");
                     return true;
                 }
+                if (mode == 1 && !t.isOp()) {
+                    s.sendMessage("&c" + t.getName() + " is not an operator: creative mode is for operators only.");
+                    return true;
+                }
                 t.setGameMode(mode);
                 s.sendMessage("&e" + t.getName() + " game mode: " + (mode == 1 ? "Creative" : "Survival"));
                 return true;
@@ -595,9 +610,9 @@ public final class BuiltinCommands {
                     return true;
                 }
                 t.setHealth(20);
-                t.sendMessage("&aCanin dolduruldu.");
+                t.sendMessage("&aYour health was restored.");
                 if (t != s) {
-                    s.sendMessage("&e" + t.getName() + " iyilestirildi.");
+                    s.sendMessage("&e" + t.getName() + " was healed.");
                 }
                 return true;
             }
@@ -610,7 +625,7 @@ public final class BuiltinCommands {
                     return true;
                 }
                 t.setHealth(0);
-                s.sendMessage("&e" + t.getName() + " olduruldu.");
+                s.sendMessage("&e" + t.getName() + " was killed.");
                 return true;
             }
         });
@@ -625,7 +640,7 @@ public final class BuiltinCommands {
                     return true;
                 }
                 t.teleport(((Player) s).getLocation());
-                s.sendMessage("&e" + t.getName() + " yanina isinlandi.");
+                s.sendMessage("&e" + t.getName() + " teleported to the player.");
                 return true;
             }
         });
@@ -659,7 +674,7 @@ public final class BuiltinCommands {
                 if (a.length == 0) {
                     return false;
                 }
-                String[] keys = {"zombi", "iskelet", "creeper", "orumcek", "koyun", "domuz", null, "dev"};
+                String[] keys = {"zombie", "skeleton", "creeper", "spider", "sheep", "pig", null, "giant"};
                 String[] en = {"zombie", "skeleton", "creeper", "spider", "sheep", "pig", null, "giant"};
                 int type = -1;
                 for (int i = 0; i < keys.length; i++) {

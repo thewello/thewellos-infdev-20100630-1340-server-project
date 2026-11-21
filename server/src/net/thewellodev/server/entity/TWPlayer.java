@@ -42,7 +42,7 @@ public class TWPlayer implements Player {
     public final Set<Integer> visiblePlayers = new HashSet<Integer>();
 
     public int health = 20;
-    /** Bindigi arac/domuz (mob ag id'si), -1 = binmiyor */
+    /** Vehicle or pig the player rides (network id of the mob), -1 = not riding */
     public int ridingNetId = -1;
     /** Whether the first health report after joining was accepted */
     public boolean healthSynced;
@@ -60,6 +60,8 @@ public class TWPlayer implements Player {
     public int heldItem = -1;
     /** Last inventory summary sent by the client: [id, amount, damage] triples, in slot order. */
     public volatile int[] invSnapshot = new int[0];
+    /** The inventory saved for builds 227 and 313 (whose clients keep it): n times (id, count, damage), or null. */
+    public volatile int[] savedInv;
     public TWPlayer lastAttacker;
     public long lastAttackedAt;
     public long lastAttackTick;

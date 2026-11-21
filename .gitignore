@@ -21,3 +21,9 @@ Thumbs.db
 # Local server data
 run/
 *.class
+
+# Archives, logs and world data from test runs
+*.zip
+logs/
+worlds/
+players/
